@@ -38,56 +38,65 @@ Browser Extension → Shows/hides overlay on configured sites
 
 ## Installation
 
-### Quick Install
+### Option 1: Chrome Web Store (Recommended)
 
-```bash
-git clone https://github.com/khari998/claude_code_focus.git
-cd claude_code_focus
-node scripts/install.js
-```
+1. **Install the extension** from the Chrome Web Store (link coming soon)
 
-The installer automatically:
-- Creates the productivity directory structure
-- Copies daemon and extension files
-- Sets up auto-start (LaunchAgent on macOS, systemd on Linux, Startup script on Windows)
-- Configures the Claude Code hook
+2. **Run the setup command** shown on the onboarding page:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/install.js | node
+   ```
 
-### After Installation
+3. **Restart Claude Code** to activate the hook
 
-1. **Restart Claude Code** to activate the hook
+The extension will automatically detect when the daemon is running.
 
-2. **Load the browser extension:**
+### Option 2: Manual Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/khari998/claude_code_focus.git
+   cd claude_code_focus
+   ```
+
+2. **Run the installer:**
+   ```bash
+   node scripts/install.js
+   ```
+
+3. **Load the browser extension:**
    - Open your browser's extension page (see below)
    - Enable **Developer mode**
    - Click **Load unpacked**
-   - Select `~/.claude/productivity/extension`
+   - Select the `extension` folder from the cloned repository
 
-### Loading the Browser Extension
+4. **Restart Claude Code** to activate the hook
+
+### Loading the Extension Manually
 
 #### Chrome
 1. Go to `chrome://extensions`
 2. Enable **Developer mode** (toggle in top right)
 3. Click **Load unpacked**
-4. Navigate to `~/.claude/productivity/extension` (press Cmd+Shift+G / Ctrl+Shift+G and paste the path)
-5. Click **Select**
+4. Select the `extension` folder
 
 #### Arc
 1. Go to `arc://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked**
-4. Select `~/.claude/productivity/extension`
+4. Select the `extension` folder
 
 #### Brave
 1. Go to `brave://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked**
-4. Select `~/.claude/productivity/extension`
+4. Select the `extension` folder
 
 #### Edge
 1. Go to `edge://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked**
-4. Select `~/.claude/productivity/extension`
+4. Select the `extension` folder
 
 ## Configuration
 
@@ -143,16 +152,17 @@ type %USERPROFILE%\.claude\productivity\daemon\logs\stderr.log
 ## Uninstallation
 
 ```bash
-node scripts/uninstall.js
+curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/uninstall.js | node
 ```
 
-Don't forget to also remove the browser extension from your extensions page.
+Then remove the browser extension from your extensions page.
 
 ## Troubleshooting
 
-### Extension popup not opening
-- Make sure you loaded the extension from `~/.claude/productivity/extension` (not the repo folder)
-- Try removing and re-adding the extension
+### Extension shows "Daemon offline"
+1. Run the install command: `curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/install.js | node`
+2. Check daemon status: `curl http://127.0.0.1:31415/health`
+3. Check logs in `~/.claude/productivity/daemon/logs/`
 
 ### Overlay not appearing on a site
 1. Check the extension popup - is the site enabled?
@@ -166,23 +176,17 @@ Don't forget to also remove the browser extension from your extensions page.
 3. Check activity file updates: `cat ~/.claude/productivity/activity.json`
 
 ### Daemon not running
-1. Check status: `curl http://127.0.0.1:31415/health`
-2. Check logs in `~/.claude/productivity/daemon/logs/`
-3. Restart daemon:
-   ```bash
-   # macOS
-   launchctl unload ~/Library/LaunchAgents/com.claude.productivity-daemon.plist
-   launchctl load ~/Library/LaunchAgents/com.claude.productivity-daemon.plist
+Restart daemon:
+```bash
+# macOS
+launchctl unload ~/Library/LaunchAgents/com.claude.productivity-daemon.plist
+launchctl load ~/Library/LaunchAgents/com.claude.productivity-daemon.plist
 
-   # Linux
-   systemctl --user restart claude-focus-daemon
+# Linux
+systemctl --user restart claude-focus-daemon
 
-   # Windows - restart via Task Manager or reboot
-   ```
-
-### Settings not saving
-- Check if you have Chrome sync enabled (settings use `chrome.storage.sync`)
-- Try clearing extension data and reconfiguring
+# Windows - restart via Task Manager or reboot
+```
 
 ## License
 

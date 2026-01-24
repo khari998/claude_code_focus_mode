@@ -2,7 +2,11 @@
 
 /**
  * Claude Code Focus Mode - Cross-Platform Uninstaller
- * Works on macOS, Linux, and Windows
+ *
+ * This script can be run via curl:
+ *   curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/uninstall.js | node
+ *
+ * Works on macOS, Linux, and Windows.
  */
 
 const fs = require('fs');
@@ -34,7 +38,7 @@ const PATHS = {
 
 const paths = PATHS[PLATFORM];
 if (!paths) {
-  console.error(`❌ Unsupported platform: ${PLATFORM}`);
+  console.error(`Unsupported platform: ${PLATFORM}`);
   process.exit(1);
 }
 
@@ -103,7 +107,7 @@ function stopDaemonWindows() {
 }
 
 function stopDaemon() {
-  log('⏹️  Stopping daemon...');
+  log('Stopping daemon...');
 
   switch (PLATFORM) {
     case 'darwin':
@@ -119,7 +123,7 @@ function stopDaemon() {
 }
 
 function removeHookFromSettings() {
-  log('🔧 Removing Claude Code hook...');
+  log('Removing Claude Code hook...');
 
   const settingsPath = path.join(paths.claude, 'settings.json');
 
@@ -155,13 +159,13 @@ function removeHookFromSettings() {
       log('   No hooks found in settings.json');
     }
   } catch (e) {
-    log('   ⚠️  Could not modify settings.json: ' + e.message);
+    log('   Could not modify settings.json: ' + e.message);
   }
 }
 
 function main() {
   console.log('');
-  console.log('🗑️  Uninstalling Claude Code Focus Mode...');
+  console.log('Uninstalling Claude Code Focus Mode...');
   console.log(`   Platform: ${PLATFORM}`);
   console.log('');
 
@@ -169,7 +173,7 @@ function main() {
   stopDaemon();
 
   // Remove productivity directory
-  log('📁 Removing files...');
+  log('Removing files...');
   if (removeDir(paths.productivity)) {
     log(`   Removed ${paths.productivity}`);
   } else {
@@ -180,9 +184,9 @@ function main() {
   removeHookFromSettings();
 
   console.log('');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('✅ Uninstallation complete!');
-  console.log('═══════════════════════════════════════════════════════════');
+  console.log('============================================================');
+  console.log('Uninstallation complete!');
+  console.log('============================================================');
   console.log('');
   console.log('Don\'t forget to:');
   console.log('1. Remove the browser extension from your extensions page');

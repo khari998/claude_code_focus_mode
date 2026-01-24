@@ -135,6 +135,22 @@ h2 {
   background: rgba(76, 175, 80, 0.3);
 }
 
+.transparency-note {
+  font-size: 13px;
+  color: #808080;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.transparency-note a {
+  color: #818cf8;
+  text-decoration: none;
+}
+
+.transparency-note a:hover {
+  text-decoration: underline;
+}
+
 .steps {
   display: flex;
   flex-direction: column;

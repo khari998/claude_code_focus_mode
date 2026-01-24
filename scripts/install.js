@@ -2,16 +2,31 @@
 
 /**
  * Claude Code Focus Mode - Cross-Platform Installer
- * Works on macOS, Linux, and Windows
+ *
+ * This script is designed to be run via curl:
+ *   curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/install.js | node
+ *
+ * It downloads the daemon files from GitHub and sets up everything needed
+ * for the browser extension to communicate with Claude Code.
+ *
+ * Works on macOS, Linux, and Windows.
  */
 
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const https = require('https');
 const { execSync } = require('child_process');
 
 const PLATFORM = process.platform;
 const HOME = os.homedir();
+
+// GitHub raw URLs for daemon files
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/khari998/claude_code_focus/main';
+const DAEMON_FILES = [
+  { name: 'server.js', url: `${GITHUB_RAW_BASE}/daemon/server.js` },
+  { name: 'record-activity.js', url: `${GITHUB_RAW_BASE}/daemon/record-activity.js` },
+];
 
 // Platform-specific paths
 const PATHS = {
@@ -20,7 +35,6 @@ const PATHS = {
     productivity: path.join(HOME, '.claude', 'productivity'),
     daemon: path.join(HOME, '.claude', 'productivity', 'daemon'),
     logs: path.join(HOME, '.claude', 'productivity', 'daemon', 'logs'),
-    extension: path.join(HOME, '.claude', 'productivity', 'extension'),
     launchAgent: path.join(HOME, 'Library', 'LaunchAgents', 'com.claude.productivity-daemon.plist'),
   },
   linux: {
@@ -28,7 +42,6 @@ const PATHS = {
     productivity: path.join(HOME, '.claude', 'productivity'),
     daemon: path.join(HOME, '.claude', 'productivity', 'daemon'),
     logs: path.join(HOME, '.claude', 'productivity', 'daemon', 'logs'),
-    extension: path.join(HOME, '.claude', 'productivity', 'extension'),
     systemdUser: path.join(HOME, '.config', 'systemd', 'user'),
     systemdService: path.join(HOME, '.config', 'systemd', 'user', 'claude-focus-daemon.service'),
   },
@@ -37,7 +50,6 @@ const PATHS = {
     productivity: path.join(HOME, '.claude', 'productivity'),
     daemon: path.join(HOME, '.claude', 'productivity', 'daemon'),
     logs: path.join(HOME, '.claude', 'productivity', 'daemon', 'logs'),
-    extension: path.join(HOME, '.claude', 'productivity', 'extension'),
     startupFolder: path.join(HOME, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'),
     startupScript: path.join(HOME, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'claude-focus-daemon.vbs'),
   },
@@ -45,12 +57,9 @@ const PATHS = {
 
 const paths = PATHS[PLATFORM];
 if (!paths) {
-  console.error(`❌ Unsupported platform: ${PLATFORM}`);
+  console.error(`Unsupported platform: ${PLATFORM}`);
   process.exit(1);
 }
-
-const SCRIPT_DIR = __dirname;
-const REPO_DIR = path.dirname(SCRIPT_DIR);
 
 function log(msg) {
   console.log(msg);
@@ -62,24 +71,58 @@ function ensureDir(dir) {
   }
 }
 
-function copyDir(src, dest) {
-  ensureDir(dest);
-  const entries = fs.readdirSync(src, { withFileTypes: true });
+/**
+ * Download a file from a URL
+ */
+function downloadFile(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destPath);
 
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+    https.get(url, (response) => {
+      // Handle redirects
+      if (response.statusCode === 301 || response.statusCode === 302) {
+        file.close();
+        fs.unlinkSync(destPath);
+        downloadFile(response.headers.location, destPath).then(resolve).catch(reject);
+        return;
+      }
 
-    if (entry.isDirectory()) {
-      copyDir(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
+      if (response.statusCode !== 200) {
+        file.close();
+        fs.unlinkSync(destPath);
+        reject(new Error(`Failed to download ${url}: HTTP ${response.statusCode}`));
+        return;
+      }
+
+      response.pipe(file);
+
+      file.on('finish', () => {
+        file.close();
+        resolve();
+      });
+    }).on('error', (err) => {
+      file.close();
+      fs.unlinkSync(destPath);
+      reject(err);
+    });
+  });
 }
 
-function copyFile(src, dest) {
-  fs.copyFileSync(src, dest);
+/**
+ * Download all daemon files from GitHub
+ */
+async function downloadDaemonFiles() {
+  log('Downloading daemon files from GitHub...');
+
+  for (const file of DAEMON_FILES) {
+    const destPath = path.join(paths.daemon, file.name);
+    try {
+      await downloadFile(file.url, destPath);
+      log(`   Downloaded ${file.name}`);
+    } catch (e) {
+      throw new Error(`Failed to download ${file.name}: ${e.message}`);
+    }
+  }
 }
 
 // Platform-specific daemon setup
@@ -129,7 +172,7 @@ function setupDaemonMacOS() {
     execSync(`launchctl load "${paths.launchAgent}"`, { stdio: 'pipe' });
     log('   LaunchAgent installed and started');
   } catch (e) {
-    log('   ⚠️  Could not start daemon automatically. Run manually:');
+    log('   Could not start daemon automatically. Run manually:');
     log(`      launchctl load "${paths.launchAgent}"`);
   }
 }
@@ -161,7 +204,7 @@ WantedBy=default.target
     execSync('systemctl --user start claude-focus-daemon', { stdio: 'pipe' });
     log('   systemd user service installed and started');
   } catch (e) {
-    log('   ⚠️  Could not start daemon automatically. Run manually:');
+    log('   Could not start daemon automatically. Run manually:');
     log('      systemctl --user start claude-focus-daemon');
   }
 }
@@ -184,13 +227,13 @@ WshShell.Run "node ""${paths.daemon.replace(/\\/g, '\\\\')}\\server.js""", 0, Fa
     });
     log('   Startup script installed and daemon started');
   } catch (e) {
-    log('   ⚠️  Could not start daemon automatically.');
+    log('   Could not start daemon automatically.');
     log(`      Start manually: node "${paths.daemon}\\server.js"`);
   }
 }
 
 function setupDaemon() {
-  log('⚙️  Setting up daemon auto-start...');
+  log('Setting up daemon auto-start...');
 
   switch (PLATFORM) {
     case 'darwin':
@@ -206,7 +249,7 @@ function setupDaemon() {
 }
 
 function updateClaudeSettings() {
-  log('🔧 Configuring Claude Code hook...');
+  log('Configuring Claude Code hook...');
 
   const settingsPath = path.join(paths.claude, 'settings.json');
   let settings = {};
@@ -215,7 +258,7 @@ function updateClaudeSettings() {
     try {
       settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
     } catch (e) {
-      log('   ⚠️  Could not parse existing settings.json, creating new one');
+      log('   Could not parse existing settings.json, creating new one');
     }
   }
 
@@ -243,7 +286,7 @@ function updateClaudeSettings() {
 }
 
 function verifyDaemon() {
-  log('🔍 Verifying daemon...');
+  log('Verifying daemon...');
 
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -251,24 +294,24 @@ function verifyDaemon() {
         const http = require('http');
         const req = http.get('http://127.0.0.1:31415/health', (res) => {
           if (res.statusCode === 200) {
-            log('   ✅ Daemon is running!');
+            log('   Daemon is running!');
           } else {
-            log('   ⚠️  Daemon responded but with unexpected status');
+            log('   Daemon responded but with unexpected status');
           }
           resolve();
         });
         req.on('error', () => {
-          log('   ⚠️  Daemon not responding yet. It may take a moment to start.');
+          log('   Daemon not responding yet. It may take a moment to start.');
           log('      Check logs at: ' + paths.logs);
           resolve();
         });
         req.setTimeout(2000, () => {
           req.destroy();
-          log('   ⚠️  Daemon connection timed out');
+          log('   Daemon connection timed out');
           resolve();
         });
       } catch (e) {
-        log('   ⚠️  Could not verify daemon');
+        log('   Could not verify daemon');
         resolve();
       }
     }, 2000);
@@ -277,25 +320,18 @@ function verifyDaemon() {
 
 async function main() {
   console.log('');
-  console.log('🚀 Installing Claude Code Focus Mode...');
+  console.log('Installing Claude Code Focus Mode...');
   console.log(`   Platform: ${PLATFORM}`);
   console.log('');
 
   // Create directories
-  log('📁 Creating directories...');
+  log('Creating directories...');
   ensureDir(paths.productivity);
   ensureDir(paths.daemon);
   ensureDir(paths.logs);
-  ensureDir(paths.extension);
 
-  // Copy daemon files
-  log('📋 Copying daemon files...');
-  copyFile(path.join(REPO_DIR, 'daemon', 'server.js'), path.join(paths.daemon, 'server.js'));
-  copyFile(path.join(REPO_DIR, 'daemon', 'record-activity.js'), path.join(paths.daemon, 'record-activity.js'));
-
-  // Copy extension files
-  log('📋 Copying extension files...');
-  copyDir(path.join(REPO_DIR, 'extension'), paths.extension);
+  // Download daemon files from GitHub
+  await downloadDaemonFiles();
 
   // Update Claude settings
   updateClaudeSettings();
@@ -307,34 +343,21 @@ async function main() {
   await verifyDaemon();
 
   console.log('');
-  console.log('═══════════════════════════════════════════════════════════');
-  console.log('✅ Installation complete!');
-  console.log('═══════════════════════════════════════════════════════════');
+  console.log('============================================================');
+  console.log('Installation complete!');
+  console.log('============================================================');
   console.log('');
-  console.log('Next steps:');
+  console.log('Next step:');
   console.log('');
-  console.log('1. RESTART Claude Code to activate the hook');
+  console.log('   RESTART Claude Code to activate the hook');
   console.log('');
-  console.log('2. Load the browser extension:');
-  console.log('   • Open your browser and go to the extensions page:');
-  console.log('     - Chrome: chrome://extensions');
-  console.log('     - Arc: arc://extensions');
-  console.log('     - Brave: brave://extensions');
-  console.log('     - Edge: edge://extensions');
-  console.log('   • Enable "Developer mode"');
-  console.log('   • Click "Load unpacked"');
-  console.log(`   • Select: ${paths.extension}`);
-  console.log('');
-  console.log('3. Configure (click extension icon in toolbar):');
-  console.log('   • Toggle which sites to block');
-  console.log('   • Adjust the pause timeout');
-  console.log('   • Add custom sites');
+  console.log('The browser extension will detect the daemon automatically.');
   console.log('');
   console.log('Daemon status: curl http://127.0.0.1:31415/status');
   console.log('');
 }
 
 main().catch(e => {
-  console.error('❌ Installation failed:', e.message);
+  console.error('Installation failed:', e.message);
   process.exit(1);
 });
