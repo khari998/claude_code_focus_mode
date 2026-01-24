@@ -32,8 +32,8 @@ Browser Extension → Shows/hides overlay on configured sites
 
 ## Requirements
 
+- [Claude Code](https://claude.ai/code) must be installed first
 - Node.js (v18+)
-- Claude Code CLI
 - Chrome, Arc, Brave, Edge, or any Chromium-based browser
 
 ## Installation
