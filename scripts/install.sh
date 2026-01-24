@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Claude Code Focus - Installation Script
-# Blocks YouTube unless Claude Code is actively working
+# Block distracting sites unless Claude Code is actively working
 
 set -e
 
@@ -159,10 +159,15 @@ echo "   • Enable 'Developer mode'"
 echo "   • Click 'Load unpacked'"
 echo "   • Select: ~/.claude/productivity/extension"
 echo ""
-echo "3. Test it:"
-echo "   • Open YouTube - you should see the blocking overlay"
+echo "3. Configure (click extension icon in toolbar):"
+echo "   • Toggle which sites to block"
+echo "   • Adjust timeout (1-10 minutes)"
+echo "   • Add custom sites"
+echo ""
+echo "4. Test it:"
+echo "   • Open an enabled site - blocking overlay appears"
 echo "   • Use any Claude Code tool - overlay disappears"
-echo "   • Wait 2 minutes - overlay returns"
+echo "   • Wait for timeout - overlay returns"
 echo ""
 echo "Daemon status: curl http://127.0.0.1:31415/status"
 echo ""

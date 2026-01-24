@@ -1,6 +1,14 @@
 # Claude Code Focus
 
-Block YouTube (and stay focused) unless Claude Code is actively working. The overlay disappears when you use any Claude Code tool and reappears after 2 minutes of inactivity.
+Block distracting sites unless Claude Code is actively working. Configure which sites to block and how long before the block kicks in.
+
+## Features
+
+- **Configurable Sites**: Block YouTube, Twitter, Reddit, Twitch, Netflix, TikTok, or add custom domains
+- **Adjustable Timeout**: Set how long before sites get blocked (1-10 minutes)
+- **Media Pause/Resume**: Automatically pauses video/audio when blocked, resumes when unblocked
+- **Global Toggle**: Quickly enable/disable blocking without changing site settings
+- **Status Indicator**: See Claude activity status in the extension popup
 
 ## How It Works
 
@@ -14,26 +22,26 @@ Claude Code (any instance)
 Background Daemon (localhost:31415)
     │ polled by
     ▼
-Browser Extension → Shows/hides overlay on YouTube
+Browser Extension → Shows/hides overlay on configured sites
 ```
 
 1. **Hook**: Every time Claude Code uses a tool, it records the timestamp
-2. **Daemon**: A background service checks if activity happened within the last 2 minutes
-3. **Extension**: Polls the daemon and shows/hides a blocking overlay on YouTube
+2. **Daemon**: A background service checks if activity happened within your configured timeout
+3. **Extension**: Polls the daemon and shows/hides a blocking overlay on enabled sites
 
 ## Requirements
 
 - macOS (uses LaunchAgent for daemon auto-start)
 - Node.js (v18+)
 - Claude Code CLI
-- Chrome, Arc, or Chromium-based browser
+- Chrome, Arc, Brave, Edge, or any Chromium-based browser
 
 ## Installation
 
 ### Quick Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/claude_code_focus.git
+git clone https://github.com/khari998/claude_code_focus.git
 cd claude_code_focus
 ./scripts/install.sh
 ```
@@ -68,52 +76,71 @@ cd claude_code_focus
    }
    ```
 
-3. **Create LaunchAgent at `~/Library/LaunchAgents/com.claude.productivity-daemon.plist`:**
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-   <plist version="1.0">
-   <dict>
-       <key>Label</key>
-       <string>com.claude.productivity-daemon</string>
-       <key>ProgramArguments</key>
-       <array>
-           <string>/bin/bash</string>
-           <string>-c</string>
-           <string>source ~/.nvm/nvm.sh 2>/dev/null || true; node ~/.claude/productivity/daemon/server.js</string>
-       </array>
-       <key>RunAtLoad</key>
-       <true/>
-       <key>KeepAlive</key>
-       <true/>
-       <key>StandardOutPath</key>
-       <string>/Users/YOUR_USERNAME/.claude/productivity/daemon/logs/stdout.log</string>
-       <key>StandardErrorPath</key>
-       <string>/Users/YOUR_USERNAME/.claude/productivity/daemon/logs/stderr.log</string>
-       <key>WorkingDirectory</key>
-       <string>/Users/YOUR_USERNAME/.claude/productivity/daemon</string>
-   </dict>
-   </plist>
-   ```
+3. **Create LaunchAgent** (see `scripts/install.sh` for the full plist content)
 
 4. **Start the daemon:**
    ```bash
    launchctl load ~/Library/LaunchAgents/com.claude.productivity-daemon.plist
    ```
 
-5. **Load the browser extension:**
-   - Go to `chrome://extensions` (or `arc://extensions`)
-   - Enable **Developer mode**
-   - Click **Load unpacked**
-   - Select `~/.claude/productivity/extension`
+5. **Load the browser extension** (see below)
 
 6. **Restart Claude Code** to activate the hook
 
+### Loading the Browser Extension
+
+#### Chrome
+1. Go to `chrome://extensions`
+2. Enable **Developer mode** (toggle in top right)
+3. Click **Load unpacked**
+4. Navigate to `~/.claude/productivity/extension` (press Cmd+Shift+G and paste the path)
+5. Click **Select**
+
+#### Arc
+1. Go to `arc://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked**
+4. Select `~/.claude/productivity/extension`
+
+#### Brave
+1. Go to `brave://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked**
+4. Select `~/.claude/productivity/extension`
+
+#### Edge
+1. Go to `edge://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked**
+4. Select `~/.claude/productivity/extension`
+
+## Configuration
+
+Click the extension icon in your browser toolbar to open the settings popup.
+
+### Timeout
+Set how many minutes of Claude inactivity before sites get blocked (1-10 minutes, default 2).
+
+### Blocked Sites
+Toggle which sites are blocked:
+- **YouTube** (enabled by default)
+- **Twitter/X**
+- **Reddit**
+- **Twitch**
+- **Netflix**
+- **TikTok**
+
+### Custom Sites
+Click **+ Add Custom Site** to add any domain (e.g., `instagram.com`).
+
+### Global Toggle
+Use the toggle in the header to quickly enable/disable all blocking without changing your site settings.
+
 ## Usage
 
-1. Open YouTube → Blocking overlay appears
-2. Use any Claude Code tool → Overlay disappears, video resumes
-3. Wait 2 minutes without using Claude → Overlay returns, video pauses
+1. Open a blocked site → Blocking overlay appears, media pauses
+2. Use any Claude Code tool → Overlay disappears, media resumes
+3. Wait until timeout expires → Overlay returns, media pauses
 
 ## Verification
 
@@ -145,35 +172,17 @@ Or manually:
 4. Remove the hook from `~/.claude/settings.json`
 5. Remove the extension from your browser
 
-## Configuration
-
-### Activity Timeout
-
-Default is 2 minutes. To change, edit `~/.claude/productivity/daemon/server.js`:
-```javascript
-const ACTIVITY_TIMEOUT = 2 * 60 * 1000; // Change to desired milliseconds
-```
-
-### Blocked Sites
-
-Currently only YouTube. To add more sites, edit the extension's `manifest.json`:
-```json
-"content_scripts": [{
-  "matches": [
-    "*://*.youtube.com/*",
-    "*://*.twitter.com/*",
-    "*://*.reddit.com/*"
-  ],
-  ...
-}]
-```
-
 ## Troubleshooting
 
-### Overlay not appearing
-1. Check extension is loaded: `arc://extensions`
-2. Reload YouTube page
-3. Check browser console for `[Claude Blocker]` logs
+### Extension popup not opening
+- Make sure you loaded the extension from `~/.claude/productivity/extension` (not the repo folder)
+- Try removing and re-adding the extension
+
+### Overlay not appearing on a site
+1. Check the extension popup - is the site enabled?
+2. Check if global toggle is ON
+3. Look for `[Claude Focus]` logs in browser console (Cmd+Option+J)
+4. Reload the page
 
 ### Hook not triggering
 1. Restart Claude Code after modifying settings.json
@@ -183,7 +192,15 @@ Currently only YouTube. To add more sites, edit the extension's `manifest.json`:
 ### Daemon not running
 1. Check status: `curl http://127.0.0.1:31415/health`
 2. Check logs: `cat ~/.claude/productivity/daemon/logs/stderr.log`
-3. Restart: `launchctl unload ~/Library/LaunchAgents/com.claude.productivity-daemon.plist && launchctl load ~/Library/LaunchAgents/com.claude.productivity-daemon.plist`
+3. Restart daemon:
+   ```bash
+   launchctl unload ~/Library/LaunchAgents/com.claude.productivity-daemon.plist
+   launchctl load ~/Library/LaunchAgents/com.claude.productivity-daemon.plist
+   ```
+
+### Settings not saving
+- Check if you have Chrome sync enabled (settings use `chrome.storage.sync`)
+- Try clearing extension data and reconfiguring
 
 ## License
 

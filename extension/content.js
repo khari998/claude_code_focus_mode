@@ -1,69 +1,92 @@
 /**
- * Content script for Claude Productivity Blocker
- * Injects blocking overlay on YouTube when Claude is inactive
+ * Claude Code Focus - Content Script
+ * Injects blocking overlay on configured sites when Claude is inactive
  */
 
-const OVERLAY_ID = 'claude-productivity-overlay';
-let videoPausedByUs = false;
-let videoPauseInterval = null;
+const OVERLAY_ID = 'claude-focus-overlay';
+let mediaPausedByUs = false;
+let mediaPauseInterval = null;
+let currentTimeout = 2; // Default 2 minutes
 
-function getYouTubeVideo() {
-  // Main video player
-  return document.querySelector('video.html5-main-video') || document.querySelector('video');
+// Find any playing media on the page
+function getPlayingMedia() {
+  const videos = document.querySelectorAll('video');
+  const audios = document.querySelectorAll('audio');
+
+  for (const video of videos) {
+    if (!video.paused) return video;
+  }
+  for (const audio of audios) {
+    if (!audio.paused) return audio;
+  }
+
+  return null;
 }
 
-function pauseVideo() {
-  const video = getYouTubeVideo();
-  if (video && !video.paused) {
-    video.pause();
-    videoPausedByUs = true;
-    console.log('[Claude Blocker] Video paused');
+// Pause any playing media
+function pauseMedia() {
+  const media = getPlayingMedia();
+  if (media) {
+    media.pause();
+    mediaPausedByUs = true;
+    console.log('[Claude Focus] Media paused');
   }
 }
 
-function resumeVideo() {
-  if (videoPausedByUs) {
-    const video = getYouTubeVideo();
-    if (video && video.paused) {
-      video.play().catch(() => {
-        // Autoplay might be blocked, ignore
-      });
-      console.log('[Claude Blocker] Video resumed');
+// Resume media if we paused it
+function resumeMedia() {
+  if (mediaPausedByUs) {
+    // Find paused media and resume
+    const videos = document.querySelectorAll('video');
+    const audios = document.querySelectorAll('audio');
+
+    for (const video of videos) {
+      if (video.paused) {
+        video.play().catch(() => {});
+        console.log('[Claude Focus] Video resumed');
+        break;
+      }
     }
-    videoPausedByUs = false;
+    for (const audio of audios) {
+      if (audio.paused) {
+        audio.play().catch(() => {});
+        console.log('[Claude Focus] Audio resumed');
+        break;
+      }
+    }
+
+    mediaPausedByUs = false;
   }
 }
 
-// Keep trying to pause video until it's found and paused
-function startVideoPauseWatcher() {
-  if (videoPauseInterval) return;
+// Watch for media to pause
+function startMediaPauseWatcher() {
+  if (mediaPauseInterval) return;
 
-  // Try immediately
-  pauseVideo();
+  pauseMedia();
 
-  // Keep checking every 500ms for new videos
-  videoPauseInterval = setInterval(() => {
-    const video = getYouTubeVideo();
-    if (video && !video.paused && !videoPausedByUs) {
-      pauseVideo();
+  mediaPauseInterval = setInterval(() => {
+    const media = getPlayingMedia();
+    if (media && !mediaPausedByUs) {
+      pauseMedia();
     }
   }, 500);
 }
 
-function stopVideoPauseWatcher() {
-  if (videoPauseInterval) {
-    clearInterval(videoPauseInterval);
-    videoPauseInterval = null;
+function stopMediaPauseWatcher() {
+  if (mediaPauseInterval) {
+    clearInterval(mediaPauseInterval);
+    mediaPauseInterval = null;
   }
 }
 
+// Create blocking overlay
 function createOverlay() {
   if (document.getElementById(OVERLAY_ID)) return;
 
-  console.log('[Claude Blocker] Creating overlay');
+  console.log('[Claude Focus] Creating overlay');
 
-  // Start watching for videos to pause
-  startVideoPauseWatcher();
+  startMediaPauseWatcher();
 
   const overlay = document.createElement('div');
   overlay.id = OVERLAY_ID;
@@ -76,16 +99,15 @@ function createOverlay() {
         </svg>
       </div>
       <h1 class="claude-overlay-title">Focus Mode Active</h1>
-      <p class="claude-overlay-message">YouTube is blocked while Claude Code is not working.</p>
+      <p class="claude-overlay-message">This site is blocked while Claude Code is not working.</p>
       <div class="claude-overlay-status">
         <span class="claude-status-dot"></span>
         <span class="claude-status-text">Waiting for Claude activity...</span>
       </div>
-      <p class="claude-overlay-hint">Use any Claude Code tool to unblock for 2 minutes</p>
+      <p class="claude-overlay-hint">Use any Claude Code tool to unblock for ${currentTimeout} minute${currentTimeout !== 1 ? 's' : ''}</p>
     </div>
   `;
 
-  // Insert at start of body or document
   if (document.body) {
     document.body.insertBefore(overlay, document.body.firstChild);
   } else {
@@ -93,23 +115,30 @@ function createOverlay() {
   }
 }
 
+// Remove overlay
 function removeOverlay() {
   const overlay = document.getElementById(OVERLAY_ID);
   if (overlay) {
-    console.log('[Claude Blocker] Removing overlay');
-    stopVideoPauseWatcher();
+    console.log('[Claude Focus] Removing overlay');
+    stopMediaPauseWatcher();
     overlay.classList.add('claude-overlay-hiding');
     setTimeout(() => {
       overlay.remove();
-      // Resume video after overlay is gone
-      resumeVideo();
+      resumeMedia();
     }, 300);
   }
 }
 
+// Update overlay status display
 function updateOverlayStatus(status) {
   const statusText = document.querySelector('.claude-status-text');
   const statusDot = document.querySelector('.claude-status-dot');
+  const hint = document.querySelector('.claude-overlay-hint');
+
+  if (hint && status.timeout) {
+    currentTimeout = status.timeout;
+    hint.textContent = `Use any Claude Code tool to unblock for ${currentTimeout} minute${currentTimeout !== 1 ? 's' : ''}`;
+  }
 
   if (!statusText || !statusDot) return;
 
@@ -130,8 +159,14 @@ function updateOverlayStatus(status) {
   }
 }
 
+// Handle status updates
 function handleStatus(status) {
-  console.log('[Claude Blocker] Status update:', status);
+  console.log('[Claude Focus] Status update:', status);
+
+  if (status.timeout) {
+    currentTimeout = status.timeout;
+  }
+
   if (status.active) {
     removeOverlay();
   } else {
@@ -140,24 +175,30 @@ function handleStatus(status) {
   }
 }
 
-// Listen for status updates from background script
+// Listen for messages from background
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'STATUS_UPDATE') {
     handleStatus(message.status);
   }
+
+  if (message.type === 'INIT') {
+    if (message.timeout) currentTimeout = message.timeout;
+    handleStatus(message.status);
+  }
+
+  return true;
 });
 
 // Request initial status
 chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
-  console.log('[Claude Blocker] Initial status:', response);
+  console.log('[Claude Focus] Initial status:', response);
   if (response) {
     handleStatus(response);
   } else {
-    // No response means extension just loaded, default to blocking
     handleStatus({ active: false, daemonOnline: false });
   }
 });
 
-// Create overlay immediately (fail-safe blocking)
-console.log('[Claude Blocker] Content script loaded on:', window.location.href);
+// Create overlay immediately (fail-safe)
+console.log('[Claude Focus] Content script loaded on:', window.location.href);
 createOverlay();

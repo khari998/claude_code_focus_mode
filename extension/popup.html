@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Focus</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <h1>Claude Code Focus</h1>
+      <label class="toggle-switch main-toggle">
+        <input type="checkbox" id="global-toggle" checked>
+        <span class="slider"></span>
+      </label>
+    </header>
+
+    <!-- Timeout Section -->
+    <section class="popup-section">
+      <div class="section-header">
+        <span class="section-title">Timeout</span>
+        <span class="timeout-value" id="timeout-display">2 min</span>
+      </div>
+      <div class="slider-container">
+        <span class="slider-label">1</span>
+        <input type="range" id="timeout-slider" min="1" max="10" value="2" class="range-slider">
+        <span class="slider-label">10</span>
+      </div>
+    </section>
+
+    <!-- Sites Section -->
+    <section class="popup-section">
+      <div class="section-header">
+        <span class="section-title">Blocked Sites</span>
+      </div>
+      <div class="sites-list" id="sites-list">
+        <!-- Sites will be populated by JavaScript -->
+      </div>
+
+      <!-- Add Custom Site -->
+      <div class="add-site-container" id="add-site-container">
+        <button class="add-site-btn" id="add-site-btn">+ Add Custom Site</button>
+        <div class="add-site-form hidden" id="add-site-form">
+          <input type="text" id="custom-site-input" placeholder="example.com" class="site-input">
+          <div class="form-buttons">
+            <button class="btn btn-cancel" id="cancel-add-site">Cancel</button>
+            <button class="btn btn-add" id="confirm-add-site">Add</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Status Footer -->
+    <footer class="popup-footer">
+      <span class="status-dot" id="status-dot"></span>
+      <span class="status-text" id="status-text">Checking status...</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
