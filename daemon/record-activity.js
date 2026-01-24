@@ -1,0 +1,75 @@
+#!/usr/bin/env node
+
+/**
+ * Record Claude Code activity timestamps
+ * Called by PostToolUse hook to track when Claude is actively working
+ */
+
+const fs = require('fs');
+const path = require('path');
+
+const ACTIVITY_FILE = path.join(__dirname, '..', 'activity.json');
+
+async function main() {
+  // Read hook input from stdin
+  let input = '';
+  for await (const chunk of process.stdin) {
+    input += chunk;
+  }
+
+  let hookData;
+  try {
+    hookData = JSON.parse(input);
+  } catch (e) {
+    // If no valid JSON, still record activity
+    hookData = {};
+  }
+
+  const sessionId = hookData.session_id || 'unknown';
+  const toolName = hookData.tool_name || 'unknown';
+  const timestamp = Date.now();
+
+  // Read existing activity data
+  let activityData = { sessions: {} };
+  try {
+    const existing = fs.readFileSync(ACTIVITY_FILE, 'utf-8');
+    activityData = JSON.parse(existing);
+  } catch (e) {
+    // File doesn't exist or invalid JSON, start fresh
+  }
+
+  // Update session activity
+  activityData.sessions[sessionId] = {
+    lastActivity: timestamp,
+    lastTool: toolName,
+  };
+
+  // Track most recent activity across all sessions
+  activityData.lastActivity = timestamp;
+  activityData.lastTool = toolName;
+  activityData.activeSession = sessionId;
+
+  // Clean up old sessions (older than 1 hour)
+  const ONE_HOUR = 60 * 60 * 1000;
+  for (const [sid, session] of Object.entries(activityData.sessions)) {
+    if (timestamp - session.lastActivity > ONE_HOUR) {
+      delete activityData.sessions[sid];
+    }
+  }
+
+  // Atomic write using temp file
+  const tempFile = `${ACTIVITY_FILE}.tmp.${process.pid}`;
+  try {
+    fs.writeFileSync(tempFile, JSON.stringify(activityData, null, 2));
+    fs.renameSync(tempFile, ACTIVITY_FILE);
+  } catch (e) {
+    // Clean up temp file on error
+    try {
+      fs.unlinkSync(tempFile);
+    } catch {}
+    console.error('Failed to write activity:', e.message);
+    process.exit(1);
+  }
+}
+
+main().catch(console.error);

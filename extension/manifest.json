@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Productivity Blocker",
+  "version": "1.0.0",
+  "description": "Blocks YouTube unless Claude Code is actively working",
+  "permissions": ["tabs"],
+  "host_permissions": [
+    "http://127.0.0.1:31415/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_start"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

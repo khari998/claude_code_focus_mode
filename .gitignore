@@ -1,0 +1,13 @@
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+
+# Activity state (generated at runtime)
+activity.json
