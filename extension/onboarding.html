@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Code Focus Mode - Setup</title>
+  <link rel="stylesheet" href="onboarding.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <img src="icon128.png" alt="Claude Code Focus Mode" class="logo">
+      <h1>Claude Code Focus Mode</h1>
+      <p class="subtitle">Block distracting sites while Claude Code is inactive</p>
+    </header>
+
+    <main>
+      <section class="status-section" id="status-section">
+        <div class="status-indicator" id="status-indicator">
+          <span class="status-icon" id="status-icon">⏳</span>
+          <span class="status-text" id="status-text">Waiting for daemon connection...</span>
+        </div>
+      </section>
+
+      <section class="setup-section" id="setup-section">
+        <h2>Complete Setup</h2>
+        <p>Run this command in your terminal to install the daemon:</p>
+
+        <div class="command-box">
+          <code id="command">git clone https://github.com/khari998/claude_code_focus.git && cd claude_code_focus && node scripts/install.js</code>
+          <button id="copy-btn" class="copy-btn" title="Copy to clipboard">
+            <span id="copy-icon">📋</span>
+          </button>
+        </div>
+
+        <div class="steps">
+          <div class="step">
+            <span class="step-number">1</span>
+            <span class="step-text">Copy and run the command above</span>
+          </div>
+          <div class="step">
+            <span class="step-number">2</span>
+            <span class="step-text">Restart Claude Code to activate the hook</span>
+          </div>
+          <div class="step">
+            <span class="step-number">3</span>
+            <span class="step-text">Start using Claude Code - sites will unblock automatically</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="success-section" id="success-section" style="display: none;">
+        <div class="success-icon">✅</div>
+        <h2>You're all set!</h2>
+        <p>The daemon is running and connected.</p>
+        <p class="reminder">Don't forget to <strong>restart Claude Code</strong> to activate the hook.</p>
+        <button id="open-settings-btn" class="primary-btn">Open Extension Settings</button>
+      </section>
+    </main>
+
+    <footer>
+      <a href="https://github.com/khari998/claude_code_focus" target="_blank" class="repo-link">
+        View on GitHub
+      </a>
+      <span class="separator">•</span>
+      <span class="note">Open source under MIT license</span>
+    </footer>
+  </div>
+
+  <script src="onboarding.js"></script>
+</body>
+</html>

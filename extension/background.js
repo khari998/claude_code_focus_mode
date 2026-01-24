@@ -276,6 +276,21 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+// Handle extension install/update
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === 'install') {
+    // Check if onboarding was already completed (e.g., reinstall)
+    const { onboardingComplete } = await chrome.storage.local.get('onboardingComplete');
+
+    if (!onboardingComplete) {
+      // Open onboarding page
+      chrome.tabs.create({
+        url: chrome.runtime.getURL('onboarding.html'),
+      });
+    }
+  }
+});
+
 // Initialize
 loadSettings().then(() => {
   checkStatus();
