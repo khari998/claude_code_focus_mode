@@ -28,10 +28,24 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .popup-header h1 {
   font-size: 16px;
   font-weight: 600;
   color: #fff;
+  margin: 0;
+}
+
+.header-subtitle {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  font-weight: 400;
 }
 
 /* Sections */

@@ -10,9 +10,11 @@
     "*://*.twitter.com/*",
     "*://*.x.com/*",
     "*://*.reddit.com/*",
+    "*://*.facebook.com/*",
+    "*://*.instagram.com/*",
+    "*://*.tiktok.com/*",
     "*://*.twitch.tv/*",
     "*://*.netflix.com/*",
-    "*://*.tiktok.com/*",
     "*://*/*"
   ],
   "background": {
@@ -33,7 +35,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["styles.css"],
+      "resources": ["styles.css", "media-controller.js", "content.js"],
       "matches": ["<all_urls>"]
     }
   ]

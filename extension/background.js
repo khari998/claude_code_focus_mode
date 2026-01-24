@@ -10,9 +10,11 @@ const DEFAULT_SITES = [
   { id: 'youtube', name: 'YouTube', patterns: ['*://*.youtube.com/*'], enabled: true, builtin: true },
   { id: 'twitter', name: 'Twitter/X', patterns: ['*://*.twitter.com/*', '*://*.x.com/*'], enabled: false, builtin: true },
   { id: 'reddit', name: 'Reddit', patterns: ['*://*.reddit.com/*'], enabled: false, builtin: true },
+  { id: 'facebook', name: 'Facebook', patterns: ['*://*.facebook.com/*'], enabled: false, builtin: true },
+  { id: 'instagram', name: 'Instagram', patterns: ['*://*.instagram.com/*'], enabled: false, builtin: true },
+  { id: 'tiktok', name: 'TikTok', patterns: ['*://*.tiktok.com/*'], enabled: false, builtin: true },
   { id: 'twitch', name: 'Twitch', patterns: ['*://*.twitch.tv/*'], enabled: false, builtin: true },
   { id: 'netflix', name: 'Netflix', patterns: ['*://*.netflix.com/*'], enabled: false, builtin: true },
-  { id: 'tiktok', name: 'TikTok', patterns: ['*://*.tiktok.com/*'], enabled: false, builtin: true },
 ];
 
 let settings = {
@@ -100,16 +102,24 @@ function urlMatchesEnabledSite(url) {
   return false;
 }
 
-// Inject content script into a tab
+// Inject content scripts into a tab
 async function injectContentScript(tabId) {
   if (injectedTabs.has(tabId)) return;
 
   try {
+    // Inject CSS first
     await chrome.scripting.insertCSS({
       target: { tabId },
       files: ['styles.css'],
     });
 
+    // Inject media controller first (content.js depends on it)
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['media-controller.js'],
+    });
+
+    // Then inject content script
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['content.js'],
