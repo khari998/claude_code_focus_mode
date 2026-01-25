@@ -47,16 +47,14 @@
 
     const overlay = document.createElement('div');
     overlay.id = OVERLAY_ID;
+    const iconUrl = chrome.runtime.getURL('icon.svg');
     overlay.innerHTML = `
       <div class="claude-overlay-content">
         <div class="claude-overlay-icon">
-          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 6v6l4 2"/>
-          </svg>
+          <img src="${iconUrl}" width="80" height="80" alt="Focus Mode">
         </div>
         <h1 class="claude-overlay-title">Focus Mode Active</h1>
-        <p class="claude-overlay-message">This site is blocked while Claude Code is not working.</p>
+        <p class="claude-overlay-message">This site is paused while Claude Code is not active.</p>
         <div class="claude-overlay-status">
           <span class="claude-status-dot"></span>
           <span class="claude-status-text">Waiting for Claude activity...</span>

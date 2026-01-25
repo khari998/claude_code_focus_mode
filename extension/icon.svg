@@ -3,6 +3,27 @@
  width="128" height="128" viewBox="0 0 128 128"
  preserveAspectRatio="xMidYMid meet">
 
+<defs>
+  <!-- Glow filter for spikes -->
+  <filter id="spike-glow" x="-50%" y="-50%" width="200%" height="200%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+    <feMerge>
+      <feMergeNode in="blur"/>
+      <feMergeNode in="SourceGraphic"/>
+    </feMerge>
+  </filter>
+</defs>
+
+<style>
+  @keyframes glow-pulse {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+  }
+  .spike-glow-layer {
+    animation: glow-pulse 2.5s infinite ease-in-out;
+  }
+</style>
+
 <!-- Body fill (orange) -->
 <g transform="translate(0,128) scale(0.1,-0.1)" fill="#da7758" stroke="none">
 <path d="M580 982 c-71 -39 -88 -128 -34 -191 51 -61 136 -62 188 -1 36 43 41
@@ -19,8 +40,22 @@
 -82 -20z"/>
 </g>
 
-<!-- Spikes (white) -->
-<g transform="translate(0,128) scale(0.1,-0.1)" fill="#FFFFFF" stroke="none">
+<!-- Glow layer for spikes (blurred, animated) -->
+<g class="spike-glow-layer" transform="translate(0,128) scale(0.1,-0.1)" fill="#FFFFFF" stroke="none" filter="url(#spike-glow)">
+<path d="M630 1185 c0 -50 4 -85 10 -85 6 0 10 35 10 85 0 50 -4 85 -10 85 -6
+0 -10 -35 -10 -85z"/>
+<path d="M460 1158 c0 -21 51 -99 61 -93 5 4 -3 28 -18 56 -27 47 -43 61 -43
+37z"/>
+<path d="M777 1121 c-15 -28 -23 -52 -18 -56 10 -6 61 72 61 93 0 24 -16 10
+-43 -37z"/>
+<path d="M280 1061 c0 -16 142 -93 152 -83 6 6 -19 26 -62 51 -73 42 -90 48
+-90 32z"/>
+<path d="M907 1028 c-42 -25 -65 -44 -59 -50 10 -10 152 67 152 83 0 16 -24 8
+-93 -33z"/>
+</g>
+
+<!-- Spikes (white) - solid layer on top -->
+<g id="spikes" transform="translate(0,128) scale(0.1,-0.1)" fill="#FFFFFF" stroke="none">
 <path d="M630 1185 c0 -50 4 -85 10 -85 6 0 10 35 10 85 0 50 -4 85 -10 85 -6
 0 -10 -35 -10 -85z"/>
 <path d="M460 1158 c0 -21 51 -99 61 -93 5 4 -3 28 -18 56 -27 47 -43 61 -43

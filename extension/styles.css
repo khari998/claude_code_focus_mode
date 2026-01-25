@@ -29,9 +29,13 @@
 }
 
 .claude-overlay-icon {
-  color: #da7757 !important;
   margin-bottom: 24px !important;
-  animation: claude-pulse 2s infinite ease-in-out !important;
+  animation: claude-breathe 2.5s infinite ease-in-out !important;
+}
+
+@keyframes claude-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.05); opacity: 1; }
 }
 
 .claude-overlay-title {
@@ -94,10 +98,6 @@
   margin: 0 !important;
 }
 
-@keyframes claude-pulse {
-  0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.05); opacity: 0.8; }
-}
 
 @keyframes claude-blink {
   0%, 100% { opacity: 1; }
