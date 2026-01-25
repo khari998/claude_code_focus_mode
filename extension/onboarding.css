@@ -179,7 +179,8 @@ h2::before {
 }
 
 .copy-btn.copied {
-  background: rgba(76, 175, 80, 0.3);
+  background: #faf9f5;
+  color: #343331;
 }
 
 .transparency-note {
@@ -252,11 +253,43 @@ h2::before {
 }
 
 .status-icon {
-  color: #84837d;
+  color: #da7757;
 }
 
 .status-icon i {
   font-size: 20px;
+}
+
+/* Toast notification */
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  background: #1f1e1d;
+  color: #faf9f5;
+  padding: 14px 24px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+  z-index: 1000;
+}
+
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.toast i {
+  color: #4ade80;
+  font-size: 16px;
 }
 
 .success-section h2 {

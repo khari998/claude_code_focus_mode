@@ -69,15 +69,44 @@ function onConnected() {
 }
 
 /**
+ * Show toast notification
+ */
+function showToast(message) {
+  // Remove existing toast
+  const existingToast = document.querySelector('.toast');
+  if (existingToast) existingToast.remove();
+
+  // Create toast
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<i class="fa-solid fa-circle-check"></i><span>${message}</span>`;
+  document.body.appendChild(toast);
+
+  // Animate in
+  requestAnimationFrame(() => {
+    toast.classList.add('show');
+  });
+
+  // Remove after delay
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 2500);
+}
+
+/**
  * Copy command to clipboard
  */
 async function copyCommand() {
   try {
     await navigator.clipboard.writeText(command.textContent);
 
-    // Visual feedback
+    // Visual feedback on button
     copyIcon.className = 'fa-solid fa-check';
     copyBtn.classList.add('copied');
+
+    // Show toast
+    showToast('Command copied to clipboard');
 
     setTimeout(() => {
       copyIcon.className = 'fa-regular fa-clipboard';
