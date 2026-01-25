@@ -19,7 +19,7 @@ The extension uses the following data locally on your device:
 
 ### Browser Storage (`chrome.storage.sync`)
 - **Paused site list**: Which websites you've enabled for pausing
-- **Timeout setting**: Your configured inactivity timeout (1-120 minutes)
+- **Timeout setting**: Your configured inactivity timeout
 - **Extension enabled state**: Whether the extension is turned on or off
 
 This data syncs across your Chrome browsers if you're signed into Chrome, using Chrome's built-in sync feature. We have no access to this data.
