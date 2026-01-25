@@ -327,10 +327,10 @@ async function broadcastStatus() {
             await injectContentScript(tab.id);
           }
 
-          // Send status update
+          // Send status update (always use current settings.timeout)
           await chrome.tabs.sendMessage(tab.id, {
             type: 'STATUS_UPDATE',
-            status: lastStatus,
+            status: { ...lastStatus, timeout: settings.timeout },
           });
         } catch (e) {
           // Tab might be closed, navigated, or not ready
