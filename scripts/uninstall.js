@@ -4,7 +4,7 @@
  * Claude Code Focus Mode - Cross-Platform Uninstaller
  *
  * This script can be run via curl:
- *   curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/uninstall.js | node
+ *   curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus_mode/main/scripts/uninstall.js | node
  *
  * Works on macOS, Linux, and Windows.
  */

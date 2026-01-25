@@ -1,13 +1,17 @@
+<p align="center">
+  <img src="extension/icon.svg" alt="Claude Code Focus Mode" width="80" height="80">
+</p>
+
 # Claude Code Focus Mode
 
-Block distracting sites unless Claude Code is actively working. Configure which sites to block and how long before the block kicks in.
+Pause distracting sites unless Claude Code is actively working. Configure which sites to pause and how long before the pause kicks in.
 
 ## Features
 
-- **Configurable Sites**: Block YouTube, Twitter, Reddit, Facebook, Instagram, TikTok, Twitch, Netflix, or add custom domains
-- **Adjustable Timeout**: Set how long before sites get blocked (1-10 minutes)
-- **Media Pause/Resume**: Automatically pauses video/audio when blocked, resumes when unblocked
-- **Global Toggle**: Quickly enable/disable blocking without changing site settings
+- **Configurable Sites**: Pause YouTube, Twitter, Reddit, Facebook, Instagram, TikTok, Twitch, Netflix, or add custom domains
+- **Adjustable Timeout**: Set how long before sites get paused (1-10 minutes)
+- **Media Pause/Resume**: Automatically pauses video/audio when paused, resumes when unpaused
+- **Global Toggle**: Quickly enable/disable pausing without changing site settings
 - **Status Indicator**: See Claude activity status in the extension popup
 - **Cross-Platform**: Works on macOS, Linux, and Windows
 
@@ -28,7 +32,7 @@ Browser Extension → Shows/hides overlay on configured sites
 
 1. **Hook**: Every time Claude Code uses a tool, it records the timestamp
 2. **Daemon**: A background service checks if activity happened within your configured timeout
-3. **Extension**: Polls the daemon and shows/hides a blocking overlay on enabled sites
+3. **Extension**: Polls the daemon and shows/hides a pausing overlay on enabled sites
 
 ## Requirements
 
@@ -48,7 +52,7 @@ For users who just want to use the extension:
 
 2. **Run the setup command** shown on the onboarding page:
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/install.js | node
+   curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus_mode/main/scripts/install.js | node
    ```
 
 3. **Restart Claude Code** to activate the hook
@@ -64,8 +68,8 @@ For developers who want to contribute or customize the extension:
 #### 1. Clone the repository
 
 ```bash
-git clone https://github.com/khari998/claude_code_focus.git
-cd claude_code_focus
+git clone https://github.com/khari998/claude_code_focus_mode.git
+cd claude_code_focus_mode
 ```
 
 #### 2. Run the installer with --dev flag
@@ -121,7 +125,7 @@ When making changes to the extension:
 3. Go to your browser's extensions page and click the refresh icon on the extension
 4. Test your changes
 
-Alternatively, you can load the extension directly from the repo folder (`~/dev/claude_code_focus/extension/`) instead of the productivity folder to skip the copy step.
+Alternatively, you can load the extension directly from the repo folder instead of the productivity folder to skip the copy step.
 
 ---
 
@@ -130,10 +134,10 @@ Alternatively, you can load the extension directly from the repo folder (`~/dev/
 Click the extension icon in your browser toolbar to open the settings popup.
 
 ### Pause After
-Set how many minutes of Claude inactivity before sites get blocked (1-10 minutes, default 2).
+Set how many minutes of Claude inactivity before sites get paused (1-10 minutes, default 2).
 
-### Blocked Sites
-Toggle which sites are blocked:
+### Paused Sites
+Toggle which sites are paused:
 - **YouTube** (enabled by default)
 - **Twitter/X**
 - **Reddit**
@@ -147,11 +151,11 @@ Toggle which sites are blocked:
 Click **+ Add Custom Site** to add any domain (e.g., `hulu.com`).
 
 ### Global Toggle
-Use the toggle in the header to quickly enable/disable all blocking without changing your site settings.
+Use the toggle in the header to quickly enable/disable all pausing without changing your site settings.
 
 ## Usage
 
-1. Open a blocked site → Blocking overlay appears, media pauses
+1. Open a paused site → Pausing overlay appears, media pauses
 2. Use any Claude Code tool → Overlay disappears, media resumes
 3. Wait until timeout expires → Overlay returns, media pauses
 
@@ -179,7 +183,7 @@ type %USERPROFILE%\.claude\productivity\daemon\logs\stderr.log
 ## Uninstallation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/uninstall.js | node
+curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus_mode/main/scripts/uninstall.js | node
 ```
 
 Then remove the browser extension from your extensions page.
@@ -187,7 +191,7 @@ Then remove the browser extension from your extensions page.
 ## Troubleshooting
 
 ### Extension shows "Daemon offline"
-1. Run the install command: `curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/install.js | node`
+1. Run the install command: `curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus_mode/main/scripts/install.js | node`
 2. Check daemon status: `curl http://127.0.0.1:31415/health`
 3. Check logs in `~/.claude/productivity/daemon/logs/`
 

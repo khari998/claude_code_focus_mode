@@ -58,7 +58,7 @@ This extension does not use any third-party services, analytics, tracking, or ex
 ## Open Source
 
 This extension is open source. You can review the complete source code at:
-[https://github.com/khari998/claude_code_focus](https://github.com/khari998/claude_code_focus)
+[https://github.com/khari998/claude_code_focus_mode](https://github.com/khari998/claude_code_focus_mode)
 
 ## Changes to This Policy
 

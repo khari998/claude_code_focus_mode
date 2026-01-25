@@ -5,7 +5,7 @@
  *
  * Usage:
  *   From Chrome Web Store (extension already installed):
- *     curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/install.js | node
+ *     curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus_mode/main/scripts/install.js | node
  *
  *   For local development (side-loading extension):
  *     node scripts/install.js --dev
@@ -26,7 +26,7 @@ const HOME = os.homedir();
 const IS_DEV_MODE = process.argv.includes('--dev');
 
 // GitHub raw URLs for daemon files
-const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/khari998/claude_code_focus/main';
+const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/khari998/claude_code_focus_mode/main';
 const DAEMON_FILES = [
   { name: 'server.js', url: `${GITHUB_RAW_BASE}/daemon/server.js` },
   { name: 'record-activity.js', url: `${GITHUB_RAW_BASE}/daemon/record-activity.js` },
