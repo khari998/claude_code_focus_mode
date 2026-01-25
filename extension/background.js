@@ -269,14 +269,27 @@ function scheduleReconnect() {
 
 // Broadcast status to matching tabs
 async function broadcastStatus() {
-  if (!settings.enabled) return;
-
-  const patterns = getEnabledPatterns();
-  if (patterns.length === 0) return;
-
   try {
     // Query all tabs
     const allTabs = await chrome.tabs.query({});
+
+    // If extension is disabled, tell all injected tabs to remove overlay
+    if (!settings.enabled) {
+      for (const tabId of injectedTabs) {
+        try {
+          await chrome.tabs.sendMessage(tabId, {
+            type: 'STATUS_UPDATE',
+            status: { active: true, disabled: true }, // Treat as active to remove overlay
+          });
+        } catch (e) {
+          injectedTabs.delete(tabId);
+        }
+      }
+      return;
+    }
+
+    const patterns = getEnabledPatterns();
+    if (patterns.length === 0) return;
 
     for (const tab of allTabs) {
       if (!tab.url) continue;
