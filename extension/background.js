@@ -267,22 +267,48 @@ function scheduleReconnect() {
   }, WS_RECONNECT_DELAY_MS);
 }
 
+// Check if URL matches ANY site pattern (regardless of enabled state)
+function urlMatchesAnySite(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+
+    for (const site of settings.sites) {
+      for (const pattern of site.patterns) {
+        const patternHost = pattern.match(/\*:\/\/\*?\.?([^\/]+)/)?.[1];
+        if (patternHost && (hostname === patternHost || hostname.endsWith('.' + patternHost))) {
+          return true;
+        }
+      }
+    }
+  } catch (e) {
+    // Invalid URL
+  }
+  return false;
+}
+
 // Broadcast status to matching tabs
 async function broadcastStatus() {
   try {
     // Query all tabs
     const allTabs = await chrome.tabs.query({});
 
-    // If extension is disabled, tell all injected tabs to remove overlay
+    // If extension is disabled, tell ALL potentially-affected tabs to remove overlay
+    // Don't rely on injectedTabs - just try to send to any tab that matches our site patterns
     if (!settings.enabled) {
-      for (const tabId of injectedTabs) {
-        try {
-          await chrome.tabs.sendMessage(tabId, {
-            type: 'STATUS_UPDATE',
-            status: { active: true, disabled: true }, // Treat as active to remove overlay
-          });
-        } catch (e) {
-          injectedTabs.delete(tabId);
+      for (const tab of allTabs) {
+        if (!tab.url || !tab.url.startsWith('http')) continue;
+
+        // Check if this tab could have an overlay (matches any site pattern)
+        if (urlMatchesAnySite(tab.url)) {
+          try {
+            await chrome.tabs.sendMessage(tab.id, {
+              type: 'STATUS_UPDATE',
+              status: { active: true, disabled: true },
+            });
+          } catch (e) {
+            // Content script not present, that's fine
+          }
         }
       }
       return;
@@ -354,21 +380,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'SETTINGS_CHANGED') {
-    const wasEnabled = settings.enabled;
     settings = message.settings;
     if (DEBUG) console.log('[Claude Focus BG] Settings updated');
 
-    // If disabling, broadcast first to remove overlays, THEN clear
-    // Must use .then() because broadcastStatus is async
-    if (wasEnabled && !settings.enabled) {
-      broadcastStatus().then(() => {
-        injectedTabs.clear();
-      });
-    } else {
-      // Enabling or other change - clear and re-broadcast
-      injectedTabs.clear();
-      broadcastStatus();
-    }
+    // Clear injected tabs tracking and broadcast new status
+    // When disabling, broadcastStatus queries all matching tabs directly (doesn't rely on injectedTabs)
+    injectedTabs.clear();
+    broadcastStatus();
     return true;
   }
 
