@@ -81,8 +81,10 @@ async function saveSettings() {
       sites: settings.sites,
     });
 
-    // Notify background script
-    chrome.runtime.sendMessage({ type: 'SETTINGS_CHANGED', settings });
+    // Notify background script (don't wait for response)
+    chrome.runtime.sendMessage({ type: 'SETTINGS_CHANGED', settings }).catch(() => {
+      // Ignore - popup may close before background responds
+    });
   } catch (e) {
     console.error('Failed to save settings:', e);
   }
@@ -109,15 +111,15 @@ function renderSites() {
     const siteEl = document.createElement('div');
     siteEl.className = `site-item${site.builtin ? '' : ' custom'}`;
 
-    const icon = SITE_ICONS[site.id] || site.name.charAt(0).toUpperCase();
+    // For custom sites, put remove button in icon position
+    const iconHtml = site.builtin
+      ? `<span class="site-icon">${SITE_ICONS[site.id] || site.name.charAt(0).toUpperCase()}</span>`
+      : `<button class="site-icon remove-site" data-id="${site.id}"><i class="fa-solid fa-xmark"></i></button>`;
 
     siteEl.innerHTML = `
       <div class="site-info">
-        <span class="site-icon">${icon}</span>
-        <span class="site-name">
-          ${site.name}
-          ${!site.builtin ? '<button class="remove-site" data-id="' + site.id + '">×</button>' : ''}
-        </span>
+        ${iconHtml}
+        <span class="site-name">${site.name}</span>
       </div>
       <label class="toggle-switch small">
         <input type="checkbox" data-site-id="${site.id}" ${site.enabled ? 'checked' : ''}>
@@ -144,10 +146,19 @@ function renderSites() {
   sitesList.querySelectorAll('.remove-site').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const siteId = e.target.dataset.id;
-      settings.sites = settings.sites.filter(s => s.id !== siteId);
-      saveSettings();
-      renderSites();
+      const button = e.currentTarget;
+      const siteId = button.dataset.id;
+      const siteItem = button.closest('.site-item');
+
+      // Animate out
+      siteItem.classList.add('removing');
+
+      // Remove after animation completes
+      setTimeout(() => {
+        settings.sites = settings.sites.filter(s => s.id !== siteId);
+        saveSettings();
+        renderSites();
+      }, 350);
     });
   });
 }
@@ -173,16 +184,35 @@ async function checkStatus() {
   }
 }
 
+// Show error message on input
+function showInputError(message) {
+  customSiteInput.style.borderColor = '#ef4444';
+  let errorEl = document.querySelector('.input-error');
+  if (!errorEl) {
+    errorEl = document.createElement('span');
+    errorEl.className = 'input-error';
+    customSiteInput.parentNode.insertBefore(errorEl, customSiteInput.nextSibling);
+  }
+  errorEl.textContent = message;
+}
+
+// Clear error message
+function clearInputError() {
+  customSiteInput.style.borderColor = '';
+  const errorEl = document.querySelector('.input-error');
+  if (errorEl) errorEl.remove();
+}
+
 // Add custom site
 function addCustomSite() {
   const domain = customSiteInput.value.trim().toLowerCase();
 
   if (!domain) return;
 
-  // Validate domain format
-  const domainRegex = /^[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}$/;
-  if (!domainRegex.test(domain)) {
-    customSiteInput.style.borderColor = '#ef4444';
+  // Validate domain format - just needs a dot with characters on both sides
+  const dotIndex = domain.indexOf('.');
+  if (dotIndex < 1 || dotIndex === domain.length - 1 || domain.includes(' ')) {
+    showInputError('Enter a valid domain (e.g. example.com)');
     return;
   }
 
@@ -192,7 +222,7 @@ function addCustomSite() {
   );
 
   if (exists) {
-    customSiteInput.style.borderColor = '#ef4444';
+    showInputError('This site is already in the list');
     return;
   }
 
@@ -211,7 +241,7 @@ function addCustomSite() {
 
   // Reset form
   customSiteInput.value = '';
-  customSiteInput.style.borderColor = '';
+  clearInputError();
   addSiteForm.classList.add('hidden');
   addSiteBtn.classList.remove('hidden');
 }
@@ -247,7 +277,7 @@ cancelAddSite.addEventListener('click', () => {
   addSiteForm.classList.add('hidden');
   addSiteBtn.classList.remove('hidden');
   customSiteInput.value = '';
-  customSiteInput.style.borderColor = '';
+  clearInputError();
 });
 
 confirmAddSite.addEventListener('click', addCustomSite);
@@ -257,7 +287,7 @@ customSiteInput.addEventListener('keypress', (e) => {
 });
 
 customSiteInput.addEventListener('input', () => {
-  customSiteInput.style.borderColor = '';
+  clearInputError();
 });
 
 // Initialize

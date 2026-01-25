@@ -267,27 +267,46 @@ function scheduleReconnect() {
   }, WS_RECONNECT_DELAY_MS);
 }
 
-// Remove overlays from all tabs matching any site pattern
-async function removeAllOverlays() {
+// Update all tabs in one pass - enabled sites get status, disabled sites get removed
+// This prevents flicker by not doing remove-then-add
+async function updateAllSites() {
   try {
     const allTabs = await chrome.tabs.query({});
 
     for (const tab of allTabs) {
       if (!tab.url || !tab.url.startsWith('http')) continue;
 
+      // Check if this tab matches any site pattern
       if (urlMatchesAnySite(tab.url)) {
-        try {
-          await chrome.tabs.sendMessage(tab.id, {
-            type: 'STATUS_UPDATE',
-            status: { active: true, disabled: true },
-          });
-        } catch (e) {
-          // Content script not present, that's fine
+        // Check if this specific site is currently enabled
+        if (settings.enabled && urlMatchesEnabledSite(tab.url)) {
+          // Site is enabled - inject if needed and send current status
+          try {
+            if (!injectedTabs.has(tab.id)) {
+              await injectContentScript(tab.id);
+            }
+            await chrome.tabs.sendMessage(tab.id, {
+              type: 'STATUS_UPDATE',
+              status: { ...lastStatus, timeout: settings.timeout },
+            });
+          } catch (e) {
+            injectedTabs.delete(tab.id);
+          }
+        } else {
+          // Site is disabled (or global is off) - remove overlay
+          try {
+            await chrome.tabs.sendMessage(tab.id, {
+              type: 'STATUS_UPDATE',
+              status: { active: true, disabled: true },
+            });
+          } catch (e) {
+            // Content script not present, that's fine
+          }
         }
       }
     }
   } catch (e) {
-    console.error('[Claude Focus BG] Remove all overlays error:', e);
+    console.error('[Claude Focus BG] Update all sites error:', e);
   }
 }
 
@@ -417,14 +436,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Clear injected tabs tracking
     injectedTabs.clear();
 
-    // First, remove overlays from ALL tabs matching any site pattern
-    // Then, re-add overlays to tabs matching currently-enabled sites
-    // This handles the case where a site was disabled (e.g., YouTube off, Twitter on)
-    removeAllOverlays().then(() => {
-      if (settings.enabled) {
-        broadcastStatus();
-      }
-    });
+    // Update all sites in one pass - prevents flicker by not doing remove-then-add
+    // Enabled sites get current status, disabled sites get removed
+    updateAllSites();
     return true;
   }
 

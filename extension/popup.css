@@ -205,7 +205,12 @@ body {
   background: #1f1e1d;
   border-radius: 8px;
   border: 1px solid #84837d;
-  transition: background 0.2s;
+  transition: background 0.2s, transform 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease-in;
+}
+
+.site-item.removing {
+  transform: translateX(-110%);
+  opacity: 0;
 }
 
 .site-item:hover {
@@ -245,17 +250,20 @@ body {
 }
 
 .remove-site {
-  background: none;
+  background: #da7757;
   border: none;
-  color: #87867f;
+  color: #343331;
   cursor: pointer;
-  font-size: 16px;
-  padding: 0 4px;
-  transition: color 0.2s;
+  transition: all 0.2s;
 }
 
 .remove-site:hover {
-  color: #b9684d;
+  background: #c46a4d;
+}
+
+.remove-site i {
+  font-size: 12px;
+  color: #faf9f5;
 }
 
 /* Add Site */
@@ -284,6 +292,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  margin-top: 12px;
 }
 
 .add-site-form.hidden {
@@ -308,6 +317,13 @@ body {
 
 .site-input::placeholder {
   color: #87867f;
+}
+
+.input-error {
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 4px;
+  display: block;
 }
 
 .form-buttons {
