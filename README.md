@@ -36,11 +36,15 @@ Browser Extension → Shows/hides overlay on configured sites
 - Node.js (v18+)
 - Chrome, Arc, Brave, Edge, or any Chromium-based browser
 
+---
+
 ## Installation
 
-### Option 1: Chrome Web Store (Recommended)
+### Option 1: Chrome Web Store (End Users)
 
-1. **Install the extension** from the Chrome Web Store (link coming soon)
+For users who just want to use the extension:
+
+1. **Install the extension** from the Chrome Web Store *(link coming soon)*
 
 2. **Run the setup command** shown on the onboarding page:
    ```bash
@@ -51,52 +55,75 @@ Browser Extension → Shows/hides overlay on configured sites
 
 The extension will automatically detect when the daemon is running.
 
-### Option 2: Manual Installation
+---
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/khari998/claude_code_focus.git
-   cd claude_code_focus
-   ```
+### Option 2: Local Development (Contributors & Forkers)
 
-2. **Run the installer:**
-   ```bash
-   node scripts/install.js
-   ```
+For developers who want to contribute or customize the extension:
 
-3. **Load the browser extension:**
-   - Open your browser's extension page (see below)
-   - Enable **Developer mode**
-   - Click **Load unpacked**
-   - Select the `extension` folder from the cloned repository
+#### 1. Clone the repository
 
-4. **Restart Claude Code** to activate the hook
+```bash
+git clone https://github.com/khari998/claude_code_focus.git
+cd claude_code_focus
+```
 
-### Loading the Extension Manually
+#### 2. Run the installer with --dev flag
 
-#### Chrome
+```bash
+node scripts/install.js --dev
+```
+
+This will:
+- Download and install the daemon files
+- Copy the extension files to `~/.claude/productivity/extension/`
+- Set up the Claude Code hook
+- Start the daemon with auto-start on boot
+
+#### 3. Load the extension in your browser
+
+**Chrome:**
 1. Go to `chrome://extensions`
 2. Enable **Developer mode** (toggle in top right)
 3. Click **Load unpacked**
-4. Select the `extension` folder
+4. Select `~/.claude/productivity/extension`
 
-#### Arc
+**Arc:**
 1. Go to `arc://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked**
-4. Select the `extension` folder
+4. Select `~/.claude/productivity/extension`
 
-#### Brave
+**Brave:**
 1. Go to `brave://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked**
-4. Select the `extension` folder
+4. Select `~/.claude/productivity/extension`
 
-#### Edge
+**Edge:**
 1. Go to `edge://extensions`
 2. Enable **Developer mode**
 3. Click **Load unpacked**
-4. Select the `extension` folder
+4. Select `~/.claude/productivity/extension`
+
+#### 4. Restart Claude Code
+
+Restart Claude Code to activate the hook.
+
+---
+
+### Development Workflow
+
+When making changes to the extension:
+
+1. Edit files in the `extension/` folder in your cloned repo
+2. Re-run `node scripts/install.js --dev` to copy updated files
+3. Go to your browser's extensions page and click the refresh icon on the extension
+4. Test your changes
+
+Alternatively, you can load the extension directly from the repo folder (`~/dev/claude_code_focus/extension/`) instead of the productivity folder to skip the copy step.
+
+---
 
 ## Configuration
 
@@ -187,6 +214,15 @@ systemctl --user restart claude-focus-daemon
 
 # Windows - restart via Task Manager or reboot
 ```
+
+## Contributing
+
+1. Fork the repository
+2. Clone your fork
+3. Run `node scripts/install.js --dev`
+4. Make your changes
+5. Test locally
+6. Submit a pull request
 
 ## License
 

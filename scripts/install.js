@@ -3,11 +3,14 @@
 /**
  * Claude Code Focus Mode - Cross-Platform Installer
  *
- * This script is designed to be run via curl:
- *   curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/install.js | node
+ * Usage:
+ *   From Chrome Web Store (extension already installed):
+ *     curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/install.js | node
  *
- * It downloads the daemon files from GitHub and sets up everything needed
- * for the browser extension to communicate with Claude Code.
+ *   For local development (side-loading extension):
+ *     node scripts/install.js --dev
+ *
+ * The --dev flag copies extension files for side-loading in the browser.
  *
  * Works on macOS, Linux, and Windows.
  */
@@ -20,12 +23,30 @@ const { execSync } = require('child_process');
 
 const PLATFORM = process.platform;
 const HOME = os.homedir();
+const IS_DEV_MODE = process.argv.includes('--dev');
 
 // GitHub raw URLs for daemon files
 const GITHUB_RAW_BASE = 'https://raw.githubusercontent.com/khari998/claude_code_focus/main';
 const DAEMON_FILES = [
   { name: 'server.js', url: `${GITHUB_RAW_BASE}/daemon/server.js` },
   { name: 'record-activity.js', url: `${GITHUB_RAW_BASE}/daemon/record-activity.js` },
+];
+
+const EXTENSION_FILES = [
+  'manifest.json',
+  'background.js',
+  'content.js',
+  'media-controller.js',
+  'popup.html',
+  'popup.js',
+  'popup.css',
+  'styles.css',
+  'onboarding.html',
+  'onboarding.js',
+  'onboarding.css',
+  'icon16.png',
+  'icon48.png',
+  'icon128.png',
 ];
 
 // Platform-specific paths
@@ -35,6 +56,7 @@ const PATHS = {
     productivity: path.join(HOME, '.claude', 'productivity'),
     daemon: path.join(HOME, '.claude', 'productivity', 'daemon'),
     logs: path.join(HOME, '.claude', 'productivity', 'daemon', 'logs'),
+    extension: path.join(HOME, '.claude', 'productivity', 'extension'),
     launchAgent: path.join(HOME, 'Library', 'LaunchAgents', 'com.claude.productivity-daemon.plist'),
   },
   linux: {
@@ -42,6 +64,7 @@ const PATHS = {
     productivity: path.join(HOME, '.claude', 'productivity'),
     daemon: path.join(HOME, '.claude', 'productivity', 'daemon'),
     logs: path.join(HOME, '.claude', 'productivity', 'daemon', 'logs'),
+    extension: path.join(HOME, '.claude', 'productivity', 'extension'),
     systemdUser: path.join(HOME, '.config', 'systemd', 'user'),
     systemdService: path.join(HOME, '.config', 'systemd', 'user', 'claude-focus-daemon.service'),
   },
@@ -50,6 +73,7 @@ const PATHS = {
     productivity: path.join(HOME, '.claude', 'productivity'),
     daemon: path.join(HOME, '.claude', 'productivity', 'daemon'),
     logs: path.join(HOME, '.claude', 'productivity', 'daemon', 'logs'),
+    extension: path.join(HOME, '.claude', 'productivity', 'extension'),
     startupFolder: path.join(HOME, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'),
     startupScript: path.join(HOME, 'AppData', 'Roaming', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'claude-focus-daemon.vbs'),
   },
@@ -123,6 +147,53 @@ async function downloadDaemonFiles() {
       throw new Error(`Failed to download ${file.name}: ${e.message}`);
     }
   }
+}
+
+/**
+ * Download all extension files from GitHub (for --dev mode)
+ */
+async function downloadExtensionFiles() {
+  log('Downloading extension files from GitHub...');
+  ensureDir(paths.extension);
+
+  for (const fileName of EXTENSION_FILES) {
+    const url = `${GITHUB_RAW_BASE}/extension/${fileName}`;
+    const destPath = path.join(paths.extension, fileName);
+    try {
+      await downloadFile(url, destPath);
+      log(`   Downloaded ${fileName}`);
+    } catch (e) {
+      throw new Error(`Failed to download ${fileName}: ${e.message}`);
+    }
+  }
+}
+
+/**
+ * Copy extension files from local repo (for --dev mode when run from repo)
+ */
+function copyExtensionFilesFromRepo() {
+  // Try to find the repo's extension folder
+  const scriptDir = __dirname;
+  const repoDir = path.dirname(scriptDir);
+  const repoExtension = path.join(repoDir, 'extension');
+
+  if (fs.existsSync(repoExtension)) {
+    log('Copying extension files from local repo...');
+    ensureDir(paths.extension);
+
+    const files = fs.readdirSync(repoExtension);
+    for (const file of files) {
+      const srcPath = path.join(repoExtension, file);
+      const destPath = path.join(paths.extension, file);
+
+      if (fs.statSync(srcPath).isFile()) {
+        fs.copyFileSync(srcPath, destPath);
+        log(`   Copied ${file}`);
+      }
+    }
+    return true;
+  }
+  return false;
 }
 
 // Platform-specific daemon setup
@@ -285,43 +356,114 @@ function updateClaudeSettings() {
   }
 }
 
-function verifyDaemon() {
-  log('Verifying daemon...');
+/**
+ * Comprehensive verification of all installed components
+ */
+async function verifyInstallation() {
+  log('');
+  log('Verifying installation...');
+  log('');
 
-  return new Promise((resolve) => {
+  const checks = [];
+  let allPassed = true;
+
+  function check(name, passed, details = '') {
+    const status = passed ? '✅' : '❌';
+    checks.push({ name, passed, details });
+    if (!passed) allPassed = false;
+    log(`${status} ${name}${details ? ` (${details})` : ''}`);
+  }
+
+  // 1. Check daemon files
+  check('server.js installed', fs.existsSync(path.join(paths.daemon, 'server.js')));
+  check('record-activity.js installed', fs.existsSync(path.join(paths.daemon, 'record-activity.js')));
+
+  // Check server.js has WebSocket support
+  const serverContent = fs.existsSync(path.join(paths.daemon, 'server.js'))
+    ? fs.readFileSync(path.join(paths.daemon, 'server.js'), 'utf-8')
+    : '';
+  check('WebSocket support in server.js', serverContent.includes('wsClients'));
+
+  // Check record-activity.js notifies daemon
+  const recordContent = fs.existsSync(path.join(paths.daemon, 'record-activity.js'))
+    ? fs.readFileSync(path.join(paths.daemon, 'record-activity.js'), 'utf-8')
+    : '';
+  check('Daemon notify in record-activity.js', recordContent.includes('notifyDaemon'));
+
+  // 2. Check Claude settings hook
+  const settingsPath = path.join(paths.claude, 'settings.json');
+  let hookConfigured = false;
+  if (fs.existsSync(settingsPath)) {
+    try {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      hookConfigured = settings.hooks?.PostToolUse?.some(h =>
+        h.hooks?.some(hh => hh.command?.includes('record-activity.js'))
+      );
+    } catch {}
+  }
+  check('PostToolUse hook configured', hookConfigured);
+
+  // 3. Check platform-specific auto-start
+  if (PLATFORM === 'darwin') {
+    check('LaunchAgent installed', fs.existsSync(paths.launchAgent));
+    const plistContent = fs.existsSync(paths.launchAgent)
+      ? fs.readFileSync(paths.launchAgent, 'utf-8')
+      : '';
+    check('LaunchAgent configured correctly', plistContent.includes('productivity/daemon/server.js'));
+  } else if (PLATFORM === 'linux') {
+    check('systemd service installed', fs.existsSync(paths.systemdService));
+  } else if (PLATFORM === 'win32') {
+    check('Startup script installed', fs.existsSync(paths.startupScript));
+  }
+
+  // 4. Check if extension files exist (dev mode only)
+  if (IS_DEV_MODE) {
+    const manifestExists = fs.existsSync(path.join(paths.extension, 'manifest.json'));
+    check('Extension files copied', manifestExists);
+  }
+
+  // 5. Check daemon is responding
+  const daemonHealth = await new Promise((resolve) => {
     setTimeout(() => {
-      try {
-        const http = require('http');
-        const req = http.get('http://127.0.0.1:31415/health', (res) => {
-          if (res.statusCode === 200) {
-            log('   Daemon is running!');
-          } else {
-            log('   Daemon responded but with unexpected status');
+      const http = require('http');
+      const req = http.get('http://127.0.0.1:31415/health', (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch {
+            resolve(null);
           }
-          resolve();
         });
-        req.on('error', () => {
-          log('   Daemon not responding yet. It may take a moment to start.');
-          log('      Check logs at: ' + paths.logs);
-          resolve();
-        });
-        req.setTimeout(2000, () => {
-          req.destroy();
-          log('   Daemon connection timed out');
-          resolve();
-        });
-      } catch (e) {
-        log('   Could not verify daemon');
-        resolve();
-      }
-    }, 2000);
+      });
+      req.on('error', () => resolve(null));
+      req.setTimeout(3000, () => {
+        req.destroy();
+        resolve(null);
+      });
+    }, 2000); // Wait 2 seconds for daemon to start
   });
+
+  if (daemonHealth) {
+    check('Daemon running', true, `uptime: ${Math.round(daemonHealth.uptime)}s`);
+    check('Daemon healthy', daemonHealth.ok === true);
+  } else {
+    check('Daemon running', false, 'Not responding on port 31415');
+    allPassed = false;
+  }
+
+  log('');
+  return allPassed;
 }
 
 async function main() {
   console.log('');
   console.log('Installing Claude Code Focus Mode...');
   console.log(`   Platform: ${PLATFORM}`);
+  if (IS_DEV_MODE) {
+    console.log('   Mode: Development (side-loading extension)');
+  }
   console.log('');
 
   // Create directories
@@ -333,28 +475,69 @@ async function main() {
   // Download daemon files from GitHub
   await downloadDaemonFiles();
 
+  // In dev mode, also get extension files
+  if (IS_DEV_MODE) {
+    // Try to copy from local repo first, fall back to downloading
+    if (!copyExtensionFilesFromRepo()) {
+      await downloadExtensionFiles();
+    }
+  }
+
   // Update Claude settings
   updateClaudeSettings();
 
   // Setup daemon auto-start
   setupDaemon();
 
-  // Verify daemon is running
-  await verifyDaemon();
+  // Verify installation
+  const installSuccess = await verifyInstallation();
 
-  console.log('');
   console.log('============================================================');
-  console.log('Installation complete!');
+  if (installSuccess) {
+    console.log('✅ Installation successful! All checks passed.');
+  } else {
+    console.log('⚠️  Installation completed with warnings.');
+    console.log('   Some checks failed - review the output above.');
+  }
   console.log('============================================================');
   console.log('');
-  console.log('Next step:');
+
+  if (IS_DEV_MODE) {
+    console.log('Next steps:');
+    console.log('');
+    console.log('1. Load the browser extension:');
+    console.log('   - Go to chrome://extensions (or your browser equivalent)');
+    console.log('   - Enable "Developer mode"');
+    console.log('   - Click "Load unpacked"');
+    console.log(`   - Select: ${paths.extension}`);
+    console.log('');
+    console.log('2. Restart Claude Code to activate the hook');
+    console.log('');
+  } else {
+    console.log('Next step:');
+    console.log('');
+    console.log('   RESTART Claude Code to activate the hook');
+    console.log('');
+    console.log('The browser extension will detect the daemon automatically.');
+    console.log('');
+  }
+
+  console.log('Useful commands:');
+  console.log('   Check status: curl http://127.0.0.1:31415/status');
+  console.log('   Check health: curl http://127.0.0.1:31415/health');
   console.log('');
-  console.log('   RESTART Claude Code to activate the hook');
-  console.log('');
-  console.log('The browser extension will detect the daemon automatically.');
-  console.log('');
-  console.log('Daemon status: curl http://127.0.0.1:31415/status');
-  console.log('');
+
+  if (!installSuccess) {
+    console.log('Troubleshooting:');
+    if (PLATFORM === 'darwin') {
+      console.log('   Restart daemon: launchctl unload ~/Library/LaunchAgents/com.claude.productivity-daemon.plist && launchctl load ~/Library/LaunchAgents/com.claude.productivity-daemon.plist');
+      console.log(`   Check logs: tail -f ${paths.logs}/stderr.log`);
+    } else if (PLATFORM === 'linux') {
+      console.log('   Restart daemon: systemctl --user restart claude-focus-daemon');
+      console.log('   Check logs: journalctl --user -u claude-focus-daemon -f');
+    }
+    console.log('');
+  }
 }
 
 main().catch(e => {

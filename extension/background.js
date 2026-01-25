@@ -1,10 +1,24 @@
 /**
  * Claude Code Focus - Background Service Worker
  * Handles status polling, settings management, and dynamic content injection
+ *
+ * Uses WebSocket for instant updates when Claude Code uses a tool.
+ * Falls back to HTTP polling when WebSocket is disconnected.
+ *
+ * NOTE: MV3 service workers are ephemeral - they get terminated after ~30s of inactivity.
+ * We use chrome.alarms API for reliable periodic polling that persists across restarts.
  */
 
 const DAEMON_URL = 'http://127.0.0.1:31415';
-const POLL_INTERVAL = 5000;
+const DAEMON_WS_URL = 'ws://127.0.0.1:31415';
+const POLL_INTERVAL_MS = 5000;
+const WS_RECONNECT_DELAY_MS = 3000;
+const ALARM_NAME = 'claude-focus-status-check';
+const ALARM_PERIOD_MINUTES = 0.5; // 30 seconds fallback when WS is down
+const DEBUG = false; // Set to true for verbose logging
+
+let wsConnection = null;
+let wsReconnectTimer = null;
 
 const DEFAULT_SITES = [
   { id: 'youtube', name: 'YouTube', patterns: ['*://*.youtube.com/*'], enabled: true, builtin: true },
@@ -47,7 +61,7 @@ async function loadSettings() {
       settings.sites = mergedSites;
     }
 
-    console.log('[Claude Focus BG] Settings loaded:', settings);
+    if (DEBUG) console.log('[Claude Focus BG] Settings loaded:', settings);
   } catch (e) {
     console.error('[Claude Focus BG] Failed to load settings:', e);
   }
@@ -79,10 +93,11 @@ function urlMatchesEnabledSite(url) {
 
       for (const pattern of site.patterns) {
         // Convert match pattern to regex
+        // IMPORTANT: Must escape . BEFORE converting * to .* otherwise the . in .* gets escaped
         const regexPattern = pattern
-          .replace(/\*/g, '.*')
-          .replace(/\//g, '\\/')
-          .replace(/\./g, '\\.');
+          .replace(/\./g, '\\.')     // First: escape dots
+          .replace(/\*/g, '.*')      // Then: convert * to .*
+          .replace(/\//g, '\\/');    // Finally: escape slashes
 
         if (new RegExp(regexPattern).test(url)) {
           return true;
@@ -126,7 +141,7 @@ async function injectContentScript(tabId) {
     });
 
     injectedTabs.add(tabId);
-    console.log('[Claude Focus BG] Injected into tab:', tabId);
+    if (DEBUG) console.log('[Claude Focus BG] Injected into tab:', tabId);
 
     // Send current status and settings
     setTimeout(() => {
@@ -134,11 +149,14 @@ async function injectContentScript(tabId) {
         type: 'INIT',
         status: lastStatus,
         timeout: settings.timeout,
-      }).catch(() => {});
+      }).catch(() => {
+        // Tab might not be ready yet, will get status via polling
+      });
     }, 100);
 
   } catch (e) {
-    console.error('[Claude Focus BG] Injection failed:', e);
+    // Injection can fail for chrome:// pages, etc.
+    if (DEBUG) console.log('[Claude Focus BG] Injection failed for tab:', tabId);
   }
 }
 
@@ -165,9 +183,9 @@ async function checkStatus() {
       timeout: settings.timeout,
     };
 
-    console.log('[Claude Focus BG] Status:', lastStatus);
+    if (DEBUG) console.log('[Claude Focus BG] Status:', lastStatus.active ? 'active' : 'inactive');
   } catch (e) {
-    console.log('[Claude Focus BG] Daemon error:', e.message);
+    if (DEBUG) console.log('[Claude Focus BG] Daemon offline');
     lastStatus = {
       active: false,
       daemonOnline: false,
@@ -178,6 +196,75 @@ async function checkStatus() {
 
   // Broadcast to all matching tabs
   await broadcastStatus();
+}
+
+/**
+ * Connect to daemon via WebSocket for instant updates
+ */
+function connectWebSocket() {
+  if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+    return; // Already connected
+  }
+
+  try {
+    wsConnection = new WebSocket(DAEMON_WS_URL);
+
+    wsConnection.onopen = () => {
+      if (DEBUG) console.log('[Claude Focus BG] WebSocket connected');
+      // Clear any reconnect timer
+      if (wsReconnectTimer) {
+        clearTimeout(wsReconnectTimer);
+        wsReconnectTimer = null;
+      }
+    };
+
+    wsConnection.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'status') {
+          // Apply custom timeout
+          const timeoutMs = settings.timeout * 60 * 1000;
+          const isActive = data.elapsed < timeoutMs;
+
+          lastStatus = {
+            ...data,
+            active: isActive,
+            daemonOnline: true,
+            timeout: settings.timeout,
+          };
+
+          // Immediately broadcast to all tabs
+          await broadcastStatus();
+        }
+      } catch (e) {
+        console.error('[Claude Focus BG] WebSocket message error:', e);
+      }
+    };
+
+    wsConnection.onclose = () => {
+      wsConnection = null;
+      scheduleReconnect();
+    };
+
+    wsConnection.onerror = () => {
+      wsConnection = null;
+      scheduleReconnect();
+    };
+  } catch (e) {
+    scheduleReconnect();
+  }
+}
+
+/**
+ * Schedule WebSocket reconnection
+ */
+function scheduleReconnect() {
+  if (wsReconnectTimer) return; // Already scheduled
+
+  wsReconnectTimer = setTimeout(() => {
+    wsReconnectTimer = null;
+    connectWebSocket();
+  }, WS_RECONNECT_DELAY_MS);
 }
 
 // Broadcast status to matching tabs
@@ -191,32 +278,27 @@ async function broadcastStatus() {
     // Query all tabs
     const allTabs = await chrome.tabs.query({});
 
-    let matchCount = 0;
     for (const tab of allTabs) {
       if (!tab.url) continue;
 
       if (urlMatchesEnabledSite(tab.url)) {
-        matchCount++;
-
-        // Inject if needed
-        if (!injectedTabs.has(tab.id)) {
-          await injectContentScript(tab.id);
-        }
-
-        // Send status update
         try {
+          // Inject if needed
+          if (!injectedTabs.has(tab.id)) {
+            await injectContentScript(tab.id);
+          }
+
+          // Send status update
           await chrome.tabs.sendMessage(tab.id, {
             type: 'STATUS_UPDATE',
             status: lastStatus,
           });
         } catch (e) {
-          // Tab might not have content script ready
+          // Tab might be closed, navigated, or not ready
           injectedTabs.delete(tab.id);
         }
       }
     }
-
-    console.log('[Claude Focus BG] Broadcast to', matchCount, 'matching tabs');
   } catch (e) {
     console.error('[Claude Focus BG] Broadcast error:', e);
   }
@@ -243,8 +325,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Handle messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'GET_STATUS') {
-    sendResponse(lastStatus);
-    return true;
+    // Do a fresh check and respond
+    checkStatus().then(() => {
+      const response = lastStatus || { active: false, daemonOnline: false, timeout: settings.timeout };
+      sendResponse(response);
+    }).catch(() => {
+      sendResponse({ active: false, daemonOnline: false, timeout: settings.timeout });
+    });
+    return true; // Indicates async response
   }
 
   if (message.type === 'GET_SETTINGS') {
@@ -254,7 +342,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'SETTINGS_CHANGED') {
     settings = message.settings;
-    console.log('[Claude Focus BG] Settings updated:', settings);
+    if (DEBUG) console.log('[Claude Focus BG] Settings updated');
 
     // Re-check all tabs
     injectedTabs.clear();
@@ -268,7 +356,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Listen for storage changes
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync') {
-    console.log('[Claude Focus BG] Storage changed:', changes);
     loadSettings().then(() => {
       injectedTabs.clear();
       broadcastStatus();
@@ -291,10 +378,50 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
-// Initialize
-loadSettings().then(() => {
-  checkStatus();
-  setInterval(checkStatus, POLL_INTERVAL);
+// Set up persistent alarm for reliable polling (survives service worker termination)
+async function setupAlarm() {
+  // Clear any existing alarm
+  await chrome.alarms.clear(ALARM_NAME);
+
+  // Create a repeating alarm
+  await chrome.alarms.create(ALARM_NAME, {
+    delayInMinutes: ALARM_PERIOD_MINUTES,
+    periodInMinutes: ALARM_PERIOD_MINUTES,
+  });
+}
+
+// Listen for alarm - this fires even if service worker was terminated
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === ALARM_NAME) {
+    // Try to reconnect WebSocket if not connected
+    if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
+      connectWebSocket();
+      checkStatus(); // Only poll if WebSocket is down
+    }
+  }
 });
 
-console.log('[Claude Focus BG] Service worker started');
+// Also listen for service worker startup to immediately check status
+self.addEventListener('activate', () => {
+  checkStatus();
+});
+
+// Initialize
+loadSettings().then(async () => {
+  // Set up persistent alarm as fallback
+  await setupAlarm();
+
+  // Connect to WebSocket for instant updates
+  connectWebSocket();
+
+  // Immediate check on startup
+  checkStatus();
+
+  // Also use setInterval as fallback while worker is active
+  setInterval(() => {
+    // Only poll if WebSocket is not connected
+    if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
+      checkStatus();
+    }
+  }, POLL_INTERVAL_MS);
+});

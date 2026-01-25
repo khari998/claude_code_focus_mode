@@ -4,12 +4,29 @@
  */
 
 (function() {
-  // Prevent multiple injections
-  if (window.__claudeFocusContent) return;
-  window.__claudeFocusContent = true;
+  const DEBUG = false; // Set to true for verbose logging
+
+  // Use a unique ID per extension load to detect reloads
+  const SCRIPT_ID = chrome.runtime.id + '_' + Date.now();
+
+  // Check if another instance is running with a VALID context
+  if (window.__claudeFocusContent) {
+    try {
+      // Test if the old context is still valid
+      chrome.runtime.id; // This throws if context is invalidated
+      return; // Already injected with valid context
+    } catch (e) {
+      // Old context is invalidated, clean up and continue
+      const oldOverlay = document.getElementById('claude-focus-overlay');
+      if (oldOverlay) oldOverlay.remove();
+    }
+  }
+  window.__claudeFocusContent = SCRIPT_ID;
 
   const OVERLAY_ID = 'claude-focus-overlay';
   let currentTimeout = 2; // Default 2 minutes
+  let lastKnownStatus = null; // Track last status for elapsed timer
+  let elapsedTimer = null; // Timer to update elapsed display
 
   // Media controller reference (injected before this script)
   const media = window.__claudeFocusMedia || {
@@ -24,8 +41,6 @@
    */
   function createOverlay() {
     if (document.getElementById(OVERLAY_ID)) return;
-
-    console.log('[Claude Focus] Creating overlay');
 
     // Start pausing media
     media.startMediaWatcher();
@@ -63,8 +78,6 @@
   function removeOverlay() {
     const overlay = document.getElementById(OVERLAY_ID);
     if (overlay) {
-      console.log('[Claude Focus] Removing overlay');
-
       // Stop media watcher
       media.stopMediaWatcher();
 
@@ -76,6 +89,46 @@
         // Resume media after overlay is gone
         media.resumeOurPausedMedia();
       }, 300);
+    }
+  }
+
+  /**
+   * Start timer to update elapsed display every second
+   */
+  function startElapsedTimer() {
+    stopElapsedTimer(); // Clear any existing timer
+
+    elapsedTimer = setInterval(() => {
+      if (lastKnownStatus && lastKnownStatus.lastActivity) {
+        const now = Date.now();
+        const elapsed = now - lastKnownStatus.lastActivity;
+        const elapsedSeconds = Math.round(elapsed / 1000);
+
+        const statusText = document.querySelector('.claude-status-text');
+        if (statusText) {
+          if (lastKnownStatus.daemonOnline === false) {
+            statusText.textContent = 'Daemon offline - blocking by default';
+          } else {
+            statusText.textContent = `Claude inactive (${elapsedSeconds}s since last activity)`;
+          }
+        }
+
+        // Check if we should now be active (in case WebSocket missed it)
+        const timeoutMs = currentTimeout * 60 * 1000;
+        if (elapsed < timeoutMs && document.getElementById(OVERLAY_ID)) {
+          removeOverlay();
+        }
+      }
+    }, 1000);
+  }
+
+  /**
+   * Stop the elapsed timer
+   */
+  function stopElapsedTimer() {
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
     }
   }
 
@@ -113,17 +166,22 @@
    * Handle status updates from background script
    */
   function handleStatus(status) {
-    console.log('[Claude Focus] Status update:', status);
+    if (DEBUG) console.log('[Claude Focus] Status:', status.active ? 'active' : 'inactive');
+
+    // Save status for elapsed timer
+    lastKnownStatus = status;
 
     if (status.timeout) {
       currentTimeout = status.timeout;
     }
 
     if (status.active) {
+      stopElapsedTimer();
       removeOverlay();
     } else {
       createOverlay();
       updateOverlayStatus(status);
+      startElapsedTimer();
     }
   }
 
@@ -131,28 +189,59 @@
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'STATUS_UPDATE') {
       handleStatus(message.status);
+      sendResponse({ received: true });
+      return true;
     }
 
     if (message.type === 'INIT') {
+      initialStatusReceived = true;
       if (message.timeout) currentTimeout = message.timeout;
       handleStatus(message.status);
+      sendResponse({ received: true });
+      return true;
     }
 
-    return true;
+    return false;
   });
+
+  let initialStatusReceived = false;
 
   // Request initial status from background
   chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
-    console.log('[Claude Focus] Initial status:', response);
+    initialStatusReceived = true;
     if (response) {
       handleStatus(response);
     } else {
-      // No response - default to blocking
       handleStatus({ active: false, daemonOnline: false });
     }
   });
 
-  // Create overlay immediately (fail-safe blocking)
-  console.log('[Claude Focus] Content script loaded on:', window.location.href);
-  createOverlay();
+  // Fail-safe: if no response within 500ms, show overlay anyway
+  setTimeout(() => {
+    if (!initialStatusReceived) {
+      handleStatus({ active: false, daemonOnline: false });
+    }
+  }, 500);
+
+  // Periodically ping background to keep service worker alive
+  const pingInterval = setInterval(() => {
+    try {
+      chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
+        if (chrome.runtime.lastError) {
+          if (chrome.runtime.lastError.message?.includes('Extension context invalidated')) {
+            clearInterval(pingInterval);
+            stopElapsedTimer();
+            return;
+          }
+          return;
+        }
+        if (response) {
+          handleStatus(response);
+        }
+      });
+    } catch (e) {
+      clearInterval(pingInterval);
+      stopElapsedTimer();
+    }
+  }, 5000);
 })();
