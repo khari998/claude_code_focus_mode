@@ -29,8 +29,18 @@
 }
 
 .claude-overlay-icon {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100% !important;
   margin-bottom: 24px !important;
   animation: claude-breathe 2.5s infinite ease-in-out !important;
+}
+
+.claude-overlay-icon img {
+  display: block !important;
+  margin: 0 auto !important;
+  max-width: 100% !important;
 }
 
 @keyframes claude-breathe {
