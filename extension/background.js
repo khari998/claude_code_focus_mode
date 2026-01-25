@@ -354,12 +354,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'SETTINGS_CHANGED') {
+    const wasEnabled = settings.enabled;
     settings = message.settings;
     if (DEBUG) console.log('[Claude Focus BG] Settings updated');
 
-    // Re-check all tabs
-    injectedTabs.clear();
-    broadcastStatus();
+    // If disabling, broadcast first to remove overlays, then clear
+    // If enabling, clear first then broadcast to re-inject
+    if (wasEnabled && !settings.enabled) {
+      // Disabling - tell existing tabs to remove overlay first
+      broadcastStatus();
+      injectedTabs.clear();
+    } else {
+      // Enabling or other change - clear and re-broadcast
+      injectedTabs.clear();
+      broadcastStatus();
+    }
     return true;
   }
 
@@ -369,9 +378,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Listen for storage changes
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync') {
+    const wasEnabled = settings.enabled;
     loadSettings().then(() => {
-      injectedTabs.clear();
-      broadcastStatus();
+      // If disabling, broadcast first to remove overlays
+      if (wasEnabled && !settings.enabled) {
+        broadcastStatus();
+        injectedTabs.clear();
+      } else {
+        injectedTabs.clear();
+        broadcastStatus();
+      }
     });
   }
 });
