@@ -267,6 +267,30 @@ function scheduleReconnect() {
   }, WS_RECONNECT_DELAY_MS);
 }
 
+// Remove overlays from all tabs matching any site pattern
+async function removeAllOverlays() {
+  try {
+    const allTabs = await chrome.tabs.query({});
+
+    for (const tab of allTabs) {
+      if (!tab.url || !tab.url.startsWith('http')) continue;
+
+      if (urlMatchesAnySite(tab.url)) {
+        try {
+          await chrome.tabs.sendMessage(tab.id, {
+            type: 'STATUS_UPDATE',
+            status: { active: true, disabled: true },
+          });
+        } catch (e) {
+          // Content script not present, that's fine
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[Claude Focus BG] Remove all overlays error:', e);
+  }
+}
+
 // Check if URL matches ANY site pattern (regardless of enabled state)
 function urlMatchesAnySite(url) {
   try {
@@ -383,10 +407,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     settings = message.settings;
     if (DEBUG) console.log('[Claude Focus BG] Settings updated');
 
-    // Clear injected tabs tracking and broadcast new status
-    // When disabling, broadcastStatus queries all matching tabs directly (doesn't rely on injectedTabs)
+    // Clear injected tabs tracking
     injectedTabs.clear();
-    broadcastStatus();
+
+    // First, remove overlays from ALL tabs matching any site pattern
+    // Then, re-add overlays to tabs matching currently-enabled sites
+    // This handles the case where a site was disabled (e.g., YouTube off, Twitter on)
+    removeAllOverlays().then(() => {
+      if (settings.enabled) {
+        broadcastStatus();
+      }
+    });
     return true;
   }
 
