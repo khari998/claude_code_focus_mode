@@ -358,12 +358,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     settings = message.settings;
     if (DEBUG) console.log('[Claude Focus BG] Settings updated');
 
-    // If disabling, broadcast first to remove overlays, then clear
-    // If enabling, clear first then broadcast to re-inject
+    // If disabling, broadcast first to remove overlays, THEN clear
+    // Must use .then() because broadcastStatus is async
     if (wasEnabled && !settings.enabled) {
-      // Disabling - tell existing tabs to remove overlay first
-      broadcastStatus();
-      injectedTabs.clear();
+      broadcastStatus().then(() => {
+        injectedTabs.clear();
+      });
     } else {
       // Enabling or other change - clear and re-broadcast
       injectedTabs.clear();
@@ -375,20 +375,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-// Listen for storage changes
+// Listen for storage changes (e.g., from other extension pages or sync)
+// Note: When popup sends SETTINGS_CHANGED message, that handler takes care of everything.
+// This listener is mainly for changes from other sources (e.g., chrome sync from another device)
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync') {
-    const wasEnabled = settings.enabled;
-    loadSettings().then(() => {
-      // If disabling, broadcast first to remove overlays
-      if (wasEnabled && !settings.enabled) {
-        broadcastStatus();
-        injectedTabs.clear();
-      } else {
-        injectedTabs.clear();
-        broadcastStatus();
-      }
-    });
+    // Just reload settings - don't broadcast here to avoid race with SETTINGS_CHANGED handler
+    // The periodic status check or next navigation will pick up the changes
+    loadSettings();
   }
 });
 
