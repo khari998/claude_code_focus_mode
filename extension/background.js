@@ -388,6 +388,13 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // Handle messages
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'GET_STATUS') {
+    // Check if sender's site is still enabled (global toggle + site toggle)
+    // If not, tell content script to remove overlay
+    if (!settings.enabled || (sender.tab?.url && !urlMatchesEnabledSite(sender.tab.url))) {
+      sendResponse({ active: true, disabled: true });
+      return true;
+    }
+
     // Do a fresh check and respond
     checkStatus().then(() => {
       const response = lastStatus || { active: false, daemonOnline: false, timeout: settings.timeout };
