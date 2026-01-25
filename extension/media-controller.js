@@ -1,5 +1,5 @@
 /**
- * Claude Code Focus - Media Controller
+ * Claude Code Focus Mode - Media Controller
  * Handles pausing/resuming all media on the page
  */
 

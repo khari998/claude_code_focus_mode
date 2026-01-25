@@ -5,7 +5,7 @@
 
 ## Overview
 
-Claude Code Focus Mode is a browser extension that helps you stay focused by blocking distracting websites while Claude Code is inactive. This privacy policy explains what data the extension accesses and how it's used.
+Claude Code Focus Mode is a browser extension that helps you stay focused by pausing distracting websites while Claude Code is inactive. This privacy policy explains what data the extension accesses and how it's used.
 
 ## Data Collection
 

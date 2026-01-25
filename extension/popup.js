@@ -1,5 +1,5 @@
 /**
- * Claude Code Focus - Popup Settings Script
+ * Claude Code Focus Mode - Popup Settings Script
  */
 
 const DAEMON_URL = 'http://127.0.0.1:31415';

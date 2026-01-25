@@ -1,5 +1,5 @@
 /**
- * Claude Code Focus - Background Service Worker
+ * Claude Code Focus Mode - Background Service Worker
  * Handles status polling, settings management, and dynamic content injection
  *
  * Uses WebSocket for instant updates when Claude Code uses a tool.

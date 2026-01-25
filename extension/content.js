@@ -1,5 +1,5 @@
 /**
- * Claude Code Focus - Content Script
+ * Claude Code Focus Mode - Content Script
  * Injects blocking overlay on configured sites when Claude is inactive
  */
 
