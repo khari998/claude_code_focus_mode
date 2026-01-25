@@ -51,8 +51,8 @@ function onConnected() {
 
   // Update status indicator
   statusIndicator.classList.add('connected');
-  statusIcon.textContent = '✅';
-  statusText.textContent = 'Daemon connected!';
+  statusIcon.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+  statusText.textContent = 'Extension connected!';
 
   // Hide setup, show success
   setupSection.style.display = 'none';
@@ -76,11 +76,11 @@ async function copyCommand() {
     await navigator.clipboard.writeText(command.textContent);
 
     // Visual feedback
-    copyIcon.textContent = '✓';
+    copyIcon.className = 'fa-solid fa-check';
     copyBtn.classList.add('copied');
 
     setTimeout(() => {
-      copyIcon.textContent = '📋';
+      copyIcon.className = 'fa-regular fa-clipboard';
       copyBtn.classList.remove('copied');
     }, 2000);
   } catch (e) {

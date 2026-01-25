@@ -4,24 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Claude Code Focus Mode - Setup</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="onboarding.css">
 </head>
 <body>
   <div class="container">
     <header>
-      <img src="icon128.png" alt="Claude Code Focus Mode" class="logo">
+      <img src="icon.svg" alt="Claude Code Focus Mode" class="logo">
       <h1>Claude Code Focus Mode</h1>
-      <p class="subtitle">Block distracting sites while Claude Code is inactive</p>
+      <p class="subtitle">Pause distracting sites while Claude Code is inactive</p>
     </header>
 
     <div class="prerequisite">
-      <strong>Prerequisite:</strong> <a href="https://claude.ai/code" target="_blank">Claude Code</a> must be installed before running setup.
+      <i class="fa-solid fa-circle-info"></i>
+      <span><strong>Prerequisite:</strong> <a href="https://claude.ai/code" target="_blank">Claude Code</a> must be installed before running setup.</span>
     </div>
 
     <main>
       <section class="status-section" id="status-section">
         <div class="status-indicator" id="status-indicator">
-          <span class="status-icon" id="status-icon">⏳</span>
+          <span class="status-icon" id="status-icon"><i class="fa-solid fa-spinner fa-spin"></i></span>
           <span class="status-text" id="status-text">Waiting for daemon connection...</span>
         </div>
       </section>
@@ -33,7 +35,7 @@
         <div class="command-box">
           <code id="command">curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus/main/scripts/install.js | node</code>
           <button id="copy-btn" class="copy-btn" title="Copy to clipboard">
-            <span id="copy-icon">📋</span>
+            <i class="fa-regular fa-clipboard" id="copy-icon"></i>
           </button>
         </div>
 
@@ -58,10 +60,10 @@
       </section>
 
       <section class="success-section" id="success-section" style="display: none;">
-        <div class="success-icon">✅</div>
+        <div class="success-icon"><i class="fa-solid fa-circle-check"></i></div>
         <h2>You're all set!</h2>
         <p>The daemon is running and connected.</p>
-        <p class="reminder">Don't forget to <strong>restart Claude Code</strong> to activate the hook.</p>
+        <p class="reminder">Don't forget to <strong>restart any active Claude Code instances</strong> to activate the extension.</p>
         <button id="open-settings-btn" class="primary-btn">Open Extension Settings</button>
       </section>
     </main>

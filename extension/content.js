@@ -208,6 +208,12 @@
 
   // Request initial status from background
   chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (response) => {
+    if (chrome.runtime.lastError) {
+      // Extension context might be invalidated or background not ready
+      initialStatusReceived = true;
+      handleStatus({ active: false, daemonOnline: false });
+      return;
+    }
     initialStatusReceived = true;
     if (response) {
       handleStatus(response);

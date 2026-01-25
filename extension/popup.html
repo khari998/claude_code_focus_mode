@@ -4,15 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Claude Code Focus</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="popup-container">
     <!-- Header -->
     <header class="popup-header">
-      <div class="header-text">
-        <h1>Claude Code Focus</h1>
-        <p class="header-subtitle">Pause sites when Claude Code is inactive</p>
+      <div class="header-left">
+        <img src="icon.svg" alt="Claude Code Focus" class="header-icon">
+        <div class="header-text">
+          <h1>Focus Mode</h1>
+          <p class="header-subtitle">Pause sites while Claude Code is inactive</p>
+        </div>
       </div>
       <label class="toggle-switch main-toggle">
         <input type="checkbox" id="global-toggle" checked>
@@ -24,12 +28,10 @@
     <section class="popup-section">
       <div class="section-header">
         <span class="section-title">Pause After</span>
-        <span class="timeout-value" id="timeout-display">2 min</span>
-      </div>
-      <div class="slider-container">
-        <span class="slider-label">1</span>
-        <input type="range" id="timeout-slider" min="1" max="10" value="2" class="range-slider">
-        <span class="slider-label">10</span>
+        <div class="timeout-input-container">
+          <input type="number" id="timeout-input" min="1" max="120" value="2" class="timeout-input">
+          <span class="timeout-unit">min</span>
+        </div>
       </div>
     </section>
 
@@ -44,7 +46,9 @@
 
       <!-- Add Custom Site -->
       <div class="add-site-container" id="add-site-container">
-        <button class="add-site-btn" id="add-site-btn">+ Add Custom Site</button>
+        <button class="add-site-btn" id="add-site-btn">
+          <i class="fa-solid fa-plus"></i> Add Custom Site
+        </button>
         <div class="add-site-form hidden" id="add-site-form">
           <input type="text" id="custom-site-input" placeholder="example.com" class="site-input">
           <div class="form-buttons">
@@ -57,7 +61,7 @@
 
     <!-- Status Footer -->
     <footer class="popup-footer">
-      <span class="status-dot" id="status-dot"></span>
+      <i class="fa-solid fa-circle status-dot" id="status-dot"></i>
       <span class="status-text" id="status-text">Checking status...</span>
     </footer>
   </div>

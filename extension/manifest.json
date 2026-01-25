@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Claude Code Focus Mode",
-  "version": "1.4.0",
-  "description": "Block distracting sites unless Claude Code is actively working",
+  "version": "1.5.0",
+  "description": "Pause distracting sites while Claude Code is inactive",
   "permissions": ["tabs", "storage", "scripting", "alarms"],
   "host_permissions": [
     "http://127.0.0.1:31415/*",

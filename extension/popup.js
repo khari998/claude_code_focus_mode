@@ -16,14 +16,14 @@ const DEFAULT_SITES = [
 ];
 
 const SITE_ICONS = {
-  youtube: '▶',
-  twitter: '𝕏',
-  reddit: '◎',
-  facebook: 'f',
-  instagram: '◐',
-  tiktok: '♪',
-  twitch: '◆',
-  netflix: 'N',
+  youtube: '<i class="fa-brands fa-youtube" style="color: #ff0000"></i>',
+  twitter: '<i class="fa-brands fa-x-twitter" style="color: #faf9f5"></i>',
+  reddit: '<i class="fa-brands fa-reddit-alien" style="color: #ff4500"></i>',
+  facebook: '<i class="fa-brands fa-facebook-f" style="color: #1877f2"></i>',
+  instagram: '<i class="fa-brands fa-instagram" style="color: #e4405f"></i>',
+  tiktok: '<i class="fa-brands fa-tiktok" style="color: #faf9f5"></i>',
+  twitch: '<i class="fa-brands fa-twitch" style="color: #9146ff"></i>',
+  netflix: '<i class="fa-solid fa-n" style="color: #e50914"></i>',
 };
 
 let settings = {
@@ -34,8 +34,7 @@ let settings = {
 
 // DOM Elements
 const globalToggle = document.getElementById('global-toggle');
-const timeoutSlider = document.getElementById('timeout-slider');
-const timeoutDisplay = document.getElementById('timeout-display');
+const timeoutInput = document.getElementById('timeout-input');
 const sitesList = document.getElementById('sites-list');
 const addSiteBtn = document.getElementById('add-site-btn');
 const addSiteForm = document.getElementById('add-site-form');
@@ -95,9 +94,8 @@ function updateUI() {
   globalToggle.checked = settings.enabled;
   popupContainer.classList.toggle('disabled', !settings.enabled);
 
-  // Timeout slider
-  timeoutSlider.value = settings.timeout;
-  timeoutDisplay.textContent = `${settings.timeout} min`;
+  // Timeout input
+  timeoutInput.value = settings.timeout;
 
   // Sites list
   renderSites();
@@ -225,12 +223,17 @@ globalToggle.addEventListener('change', () => {
   saveSettings();
 });
 
-timeoutSlider.addEventListener('input', () => {
-  settings.timeout = parseInt(timeoutSlider.value);
-  timeoutDisplay.textContent = `${settings.timeout} min`;
+timeoutInput.addEventListener('input', () => {
+  let value = parseInt(timeoutInput.value) || 1;
+  value = Math.max(1, Math.min(120, value));
+  settings.timeout = value;
 });
 
-timeoutSlider.addEventListener('change', () => {
+timeoutInput.addEventListener('change', () => {
+  let value = parseInt(timeoutInput.value) || 1;
+  value = Math.max(1, Math.min(120, value));
+  timeoutInput.value = value;
+  settings.timeout = value;
   saveSettings();
 });
 
