@@ -51,7 +51,7 @@ function onConnected() {
 
   // Update status indicator
   statusIndicator.classList.add('connected');
-  statusIcon.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+  statusIcon.remove();
   statusText.textContent = 'Extension connected!';
 
   // Hide setup, show success

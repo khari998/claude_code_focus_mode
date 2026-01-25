@@ -131,10 +131,6 @@ h2::before {
   color: #4ade80;
 }
 
-.status-indicator.connected .status-icon {
-  color: #4ade80;
-}
-
 .setup-section p {
   color: #84837d;
   margin-bottom: 16px;
@@ -247,9 +243,16 @@ h2::before {
 }
 
 .success-icon {
-  font-size: 64px;
+  font-size: 36px;
   margin-bottom: 16px;
-  color: #4ade80;
+  color: #343331;
+  background: #faf9f5;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .status-icon {
