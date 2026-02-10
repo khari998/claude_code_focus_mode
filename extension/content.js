@@ -27,6 +27,7 @@
   let currentTimeout = 2; // Default 2 minutes
   let lastKnownStatus = null; // Track last status for elapsed timer
   let elapsedTimer = null; // Timer to update elapsed display
+  let directPollTimer = null; // Direct daemon polling fallback
 
   // Media controller reference (injected before this script)
   const media = window.__claudeFocusMedia || {
@@ -68,6 +69,9 @@
     } else {
       document.documentElement.appendChild(overlay);
     }
+
+    // Start direct daemon polling as fallback for dead service worker
+    startDirectPolling();
   }
 
   /**
@@ -76,7 +80,8 @@
   function removeOverlay() {
     const overlay = document.getElementById(OVERLAY_ID);
     if (overlay) {
-      // Stop media watcher
+      // Stop direct polling and media watcher
+      stopDirectPolling();
       media.stopMediaWatcher();
 
       // Fade out animation
@@ -118,6 +123,44 @@
         }
       }
     }, 1000);
+  }
+
+  /**
+   * Start direct daemon polling as a fallback for when the MV3 service worker dies.
+   * Polls /status every 3s while the overlay is visible, bypassing the background script entirely.
+   */
+  function startDirectPolling() {
+    stopDirectPolling();
+    directPollTimer = setInterval(() => {
+      fetch('http://127.0.0.1:31415/status')
+        .then(r => r.json())
+        .then(data => {
+          const now = Date.now();
+          const elapsed = data.lastActivity ? now - data.lastActivity : Infinity;
+          const timeoutMs = currentTimeout * 60 * 1000;
+          const active = elapsed < timeoutMs;
+          handleStatus({
+            active,
+            daemonOnline: true,
+            lastActivity: data.lastActivity,
+            elapsed,
+            timeout: currentTimeout,
+          });
+        })
+        .catch(() => {
+          // Daemon unreachable - leave overlay as-is
+        });
+    }, 3000);
+  }
+
+  /**
+   * Stop direct daemon polling
+   */
+  function stopDirectPolling() {
+    if (directPollTimer) {
+      clearInterval(directPollTimer);
+      directPollTimer = null;
+    }
   }
 
   /**
@@ -174,6 +217,7 @@
     }
 
     if (status.active) {
+      stopDirectPolling();
       stopElapsedTimer();
       removeOverlay();
     } else {

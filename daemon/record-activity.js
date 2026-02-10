@@ -77,24 +77,35 @@ async function main() {
   }
 
   // Notify daemon to broadcast update to connected WebSocket clients
-  notifyDaemon();
+  // Await to ensure the POST completes before the process exits
+  await notifyDaemon();
 }
 
 /**
  * Notify the daemon to broadcast status update to all WebSocket clients.
- * This is fire-and-forget - we don't wait for the response.
+ * Returns a Promise that resolves when the request completes, errors, or times out.
  */
 function notifyDaemon() {
-  const req = http.request(DAEMON_URL, {
-    method: 'POST',
-    timeout: 1000,
-  });
+  return new Promise((resolve) => {
+    const req = http.request(DAEMON_URL, {
+      method: 'POST',
+      timeout: 1000,
+    }, () => {
+      resolve();
+    });
 
-  req.on('error', () => {
-    // Daemon might not be running - that's okay, extension will poll
-  });
+    req.on('error', () => {
+      // Daemon might not be running - that's okay, extension will poll
+      resolve();
+    });
 
-  req.end();
+    req.on('timeout', () => {
+      req.destroy();
+      resolve();
+    });
+
+    req.end();
+  });
 }
 
 main().catch(console.error);
