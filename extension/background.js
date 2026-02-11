@@ -7,6 +7,10 @@
  *
  * NOTE: MV3 service workers are ephemeral - they get terminated after ~30s of inactivity.
  * We use chrome.alarms API for reliable periodic polling that persists across restarts.
+ *
+ * Broadcast serialization: only one broadcast runs at a time. If a new broadcast is
+ * requested while one is in progress, it is queued (latest wins). This prevents
+ * concurrent tab-iteration from sending conflicting messages.
  */
 
 const DAEMON_URL = 'http://127.0.0.1:31415';
@@ -15,7 +19,7 @@ const POLL_INTERVAL_MS = 5000;
 const WS_RECONNECT_DELAY_MS = 3000;
 const ALARM_NAME = 'claude-focus-status-check';
 const ALARM_PERIOD_MINUTES = 0.5; // 30 seconds fallback when WS is down
-const DEBUG = false; // Set to true for verbose logging
+const DEBUG = false;
 
 let wsConnection = null;
 let wsReconnectTimer = null;
@@ -40,7 +44,41 @@ let settings = {
 let lastStatus = { active: false, daemonOnline: false };
 let injectedTabs = new Set();
 
-// Load settings from storage
+// ─── Broadcast serialization ───────────────────────────────────────
+// Prevents concurrent broadcasts from sending conflicting messages.
+let broadcastInProgress = false;
+let broadcastQueued = false;
+
+async function serializedBroadcast() {
+  if (broadcastInProgress) {
+    broadcastQueued = true;
+    return;
+  }
+  broadcastInProgress = true;
+  try {
+    await broadcastStatus();
+  } finally {
+    broadcastInProgress = false;
+    if (broadcastQueued) {
+      broadcastQueued = false;
+      // Use setTimeout(0) to avoid deep recursion on rapid-fire updates
+      setTimeout(() => serializedBroadcast(), 0);
+    }
+  }
+}
+
+// ─── updateAllSites serialization ──────────────────────────────────
+// Generation counter: each call gets a generation number. If a newer call
+// starts while we're iterating, the older call stops sending messages.
+let updateGeneration = 0;
+
+async function serializedUpdateAllSites() {
+  const gen = ++updateGeneration;
+  await updateAllSites(gen);
+}
+
+// ─── Settings ──────────────────────────────────────────────────────
+
 async function loadSettings() {
   try {
     const stored = await chrome.storage.sync.get(['enabled', 'timeout', 'sites']);
@@ -48,7 +86,6 @@ async function loadSettings() {
     if (stored.enabled !== undefined) settings.enabled = stored.enabled;
     if (stored.timeout !== undefined) settings.timeout = stored.timeout;
     if (stored.sites !== undefined) {
-      // Merge with defaults
       const storedIds = new Set(stored.sites.map(s => s.id));
       const mergedSites = [...stored.sites];
 
@@ -67,7 +104,6 @@ async function loadSettings() {
   }
 }
 
-// Get enabled site patterns
 function getEnabledPatterns() {
   if (!settings.enabled) return [];
 
@@ -80,7 +116,6 @@ function getEnabledPatterns() {
   return patterns;
 }
 
-// Check if URL matches any enabled site
 function urlMatchesEnabledSite(url) {
   if (!settings.enabled) return false;
 
@@ -92,18 +127,15 @@ function urlMatchesEnabledSite(url) {
       if (!site.enabled) continue;
 
       for (const pattern of site.patterns) {
-        // Convert match pattern to regex
-        // IMPORTANT: Must escape . BEFORE converting * to .* otherwise the . in .* gets escaped
         const regexPattern = pattern
-          .replace(/\./g, '\\.')     // First: escape dots
-          .replace(/\*/g, '.*')      // Then: convert * to .*
-          .replace(/\//g, '\\/');    // Finally: escape slashes
+          .replace(/\./g, '\\.')
+          .replace(/\*/g, '.*')
+          .replace(/\//g, '\\/');
 
         if (new RegExp(regexPattern).test(url)) {
           return true;
         }
 
-        // Also check hostname directly
         const patternHost = pattern.match(/\*:\/\/\*?\.?([^\/]+)/)?.[1];
         if (patternHost && (hostname === patternHost || hostname.endsWith('.' + patternHost))) {
           return true;
@@ -117,24 +149,41 @@ function urlMatchesEnabledSite(url) {
   return false;
 }
 
-// Inject content scripts into a tab
+function urlMatchesAnySite(url) {
+  try {
+    const urlObj = new URL(url);
+    const hostname = urlObj.hostname;
+
+    for (const site of settings.sites) {
+      for (const pattern of site.patterns) {
+        const patternHost = pattern.match(/\*:\/\/\*?\.?([^\/]+)/)?.[1];
+        if (patternHost && (hostname === patternHost || hostname.endsWith('.' + patternHost))) {
+          return true;
+        }
+      }
+    }
+  } catch (e) {
+    // Invalid URL
+  }
+  return false;
+}
+
+// ─── Content script injection ──────────────────────────────────────
+
 async function injectContentScript(tabId) {
   if (injectedTabs.has(tabId)) return;
 
   try {
-    // Inject CSS first
     await chrome.scripting.insertCSS({
       target: { tabId },
       files: ['styles.css'],
     });
 
-    // Inject media controller first (content.js depends on it)
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['media-controller.js'],
     });
 
-    // Then inject content script
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['content.js'],
@@ -143,24 +192,23 @@ async function injectContentScript(tabId) {
     injectedTabs.add(tabId);
     if (DEBUG) console.log('[Claude Focus BG] Injected into tab:', tabId);
 
-    // Send current status and settings
-    setTimeout(() => {
-      chrome.tabs.sendMessage(tabId, {
-        type: 'INIT',
-        status: lastStatus,
-        timeout: settings.timeout,
-      }).catch(() => {
-        // Tab might not be ready yet, will get status via polling
-      });
-    }, 100);
+    // Send INIT immediately — no delay. The content script is ready right after
+    // executeScript resolves.
+    chrome.tabs.sendMessage(tabId, {
+      type: 'INIT',
+      status: lastStatus,
+      timeout: settings.timeout,
+    }).catch(() => {
+      // Tab might have navigated away already
+    });
 
   } catch (e) {
-    // Injection can fail for chrome:// pages, etc.
     if (DEBUG) console.log('[Claude Focus BG] Injection failed for tab:', tabId);
   }
 }
 
-// Check daemon status
+// ─── Status checking ───────────────────────────────────────────────
+
 async function checkStatus() {
   try {
     const response = await fetch(`${DAEMON_URL}/status?timeout=${settings.timeout}`, {
@@ -171,8 +219,6 @@ async function checkStatus() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const data = await response.json();
-
-    // Apply custom timeout
     const timeoutMs = settings.timeout * 60 * 1000;
     const isActive = data.elapsed < timeoutMs;
 
@@ -194,16 +240,14 @@ async function checkStatus() {
     };
   }
 
-  // Broadcast to all matching tabs
-  await broadcastStatus();
+  await serializedBroadcast();
 }
 
-/**
- * Connect to daemon via WebSocket for instant updates
- */
+// ─── WebSocket ─────────────────────────────────────────────────────
+
 function connectWebSocket() {
   if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-    return; // Already connected
+    return;
   }
 
   try {
@@ -211,7 +255,6 @@ function connectWebSocket() {
 
     wsConnection.onopen = () => {
       if (DEBUG) console.log('[Claude Focus BG] WebSocket connected');
-      // Clear any reconnect timer
       if (wsReconnectTimer) {
         clearTimeout(wsReconnectTimer);
         wsReconnectTimer = null;
@@ -222,7 +265,6 @@ function connectWebSocket() {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'status') {
-          // Apply custom timeout
           const timeoutMs = settings.timeout * 60 * 1000;
           const isActive = data.elapsed < timeoutMs;
 
@@ -233,8 +275,7 @@ function connectWebSocket() {
             timeout: settings.timeout,
           };
 
-          // Immediately broadcast to all tabs
-          await broadcastStatus();
+          await serializedBroadcast();
         }
       } catch (e) {
         console.error('[Claude Focus BG] WebSocket message error:', e);
@@ -255,11 +296,8 @@ function connectWebSocket() {
   }
 }
 
-/**
- * Schedule WebSocket reconnection
- */
 function scheduleReconnect() {
-  if (wsReconnectTimer) return; // Already scheduled
+  if (wsReconnectTimer) return;
 
   wsReconnectTimer = setTimeout(() => {
     wsReconnectTimer = null;
@@ -267,82 +305,16 @@ function scheduleReconnect() {
   }, WS_RECONNECT_DELAY_MS);
 }
 
-// Update all tabs in one pass - enabled sites get status, disabled sites get removed
-// This prevents flicker by not doing remove-then-add
-async function updateAllSites() {
-  try {
-    const allTabs = await chrome.tabs.query({});
+// ─── Broadcasting ──────────────────────────────────────────────────
 
-    for (const tab of allTabs) {
-      if (!tab.url || !tab.url.startsWith('http')) continue;
-
-      // Check if this tab matches any site pattern
-      if (urlMatchesAnySite(tab.url)) {
-        // Check if this specific site is currently enabled
-        if (settings.enabled && urlMatchesEnabledSite(tab.url)) {
-          // Site is enabled - inject if needed and send current status
-          try {
-            if (!injectedTabs.has(tab.id)) {
-              await injectContentScript(tab.id);
-            }
-            await chrome.tabs.sendMessage(tab.id, {
-              type: 'STATUS_UPDATE',
-              status: { ...lastStatus, timeout: settings.timeout },
-            });
-          } catch (e) {
-            injectedTabs.delete(tab.id);
-          }
-        } else {
-          // Site is disabled (or global is off) - remove overlay
-          try {
-            await chrome.tabs.sendMessage(tab.id, {
-              type: 'STATUS_UPDATE',
-              status: { active: true, disabled: true },
-            });
-          } catch (e) {
-            // Content script not present, that's fine
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.error('[Claude Focus BG] Update all sites error:', e);
-  }
-}
-
-// Check if URL matches ANY site pattern (regardless of enabled state)
-function urlMatchesAnySite(url) {
-  try {
-    const urlObj = new URL(url);
-    const hostname = urlObj.hostname;
-
-    for (const site of settings.sites) {
-      for (const pattern of site.patterns) {
-        const patternHost = pattern.match(/\*:\/\/\*?\.?([^\/]+)/)?.[1];
-        if (patternHost && (hostname === patternHost || hostname.endsWith('.' + patternHost))) {
-          return true;
-        }
-      }
-    }
-  } catch (e) {
-    // Invalid URL
-  }
-  return false;
-}
-
-// Broadcast status to matching tabs
 async function broadcastStatus() {
   try {
-    // Query all tabs
     const allTabs = await chrome.tabs.query({});
 
-    // If extension is disabled, tell ALL potentially-affected tabs to remove overlay
-    // Don't rely on injectedTabs - just try to send to any tab that matches our site patterns
     if (!settings.enabled) {
       for (const tab of allTabs) {
         if (!tab.url || !tab.url.startsWith('http')) continue;
 
-        // Check if this tab could have an overlay (matches any site pattern)
         if (urlMatchesAnySite(tab.url)) {
           try {
             await chrome.tabs.sendMessage(tab.id, {
@@ -350,7 +322,7 @@ async function broadcastStatus() {
               status: { active: true, disabled: true },
             });
           } catch (e) {
-            // Content script not present, that's fine
+            // Content script not present
           }
         }
       }
@@ -365,18 +337,15 @@ async function broadcastStatus() {
 
       if (urlMatchesEnabledSite(tab.url)) {
         try {
-          // Inject if needed
           if (!injectedTabs.has(tab.id)) {
             await injectContentScript(tab.id);
           }
 
-          // Send status update (always use current settings.timeout)
           await chrome.tabs.sendMessage(tab.id, {
             type: 'STATUS_UPDATE',
             status: { ...lastStatus, timeout: settings.timeout },
           });
         } catch (e) {
-          // Tab might be closed, navigated, or not ready
           injectedTabs.delete(tab.id);
         }
       }
@@ -386,42 +355,103 @@ async function broadcastStatus() {
   }
 }
 
-// Handle tab updates (for newly navigated tabs)
+/**
+ * Update all sites in one pass after a settings change.
+ * Accepts a generation number — stops iterating if a newer generation started.
+ */
+async function updateAllSites(gen) {
+  try {
+    const allTabs = await chrome.tabs.query({});
+
+    for (const tab of allTabs) {
+      // Bail out if a newer settings change superseded us
+      if (gen !== updateGeneration) return;
+
+      if (!tab.url || !tab.url.startsWith('http')) continue;
+
+      if (urlMatchesAnySite(tab.url)) {
+        if (settings.enabled && urlMatchesEnabledSite(tab.url)) {
+          try {
+            if (!injectedTabs.has(tab.id)) {
+              await injectContentScript(tab.id);
+            }
+            await chrome.tabs.sendMessage(tab.id, {
+              type: 'STATUS_UPDATE',
+              status: { ...lastStatus, timeout: settings.timeout },
+            });
+          } catch (e) {
+            injectedTabs.delete(tab.id);
+          }
+        } else {
+          try {
+            await chrome.tabs.sendMessage(tab.id, {
+              type: 'STATUS_UPDATE',
+              status: { active: true, disabled: true },
+            });
+          } catch (e) {
+            // Content script not present
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[Claude Focus BG] Update all sites error:', e);
+  }
+}
+
+// ─── Tab event handling ────────────────────────────────────────────
+
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'loading' && tab.url) {
-    // Remove from injected set since page is reloading
+  // Handle full page loads — inject when page is complete (not loading)
+  // This eliminates the old 500ms setTimeout race window.
+  if (changeInfo.status === 'complete' && tab.url) {
     injectedTabs.delete(tabId);
 
     if (urlMatchesEnabledSite(tab.url)) {
-      // Wait a bit for page to be ready
-      setTimeout(() => injectContentScript(tabId), 500);
+      await injectContentScript(tabId);
+    }
+  }
+
+  // Handle SPA navigations (YouTube, etc.) — the URL changes within the
+  // same page. Re-send status so the content script re-pauses any new
+  // media elements (e.g. a new video player after clicking a video link).
+  // YouTube fires changeInfo.url alongside changeInfo.status, so we check
+  // for url changes regardless of whether status is also present. The
+  // content script's FSM handles duplicate same-state updates as no-ops.
+  if (changeInfo.url && injectedTabs.has(tabId)) {
+    if (urlMatchesEnabledSite(changeInfo.url)) {
+      try {
+        await chrome.tabs.sendMessage(tabId, {
+          type: 'STATUS_UPDATE',
+          status: { ...lastStatus, timeout: settings.timeout },
+        });
+      } catch (e) {
+        injectedTabs.delete(tabId);
+      }
     }
   }
 });
 
-// Handle tab close
 chrome.tabs.onRemoved.addListener((tabId) => {
   injectedTabs.delete(tabId);
 });
 
-// Handle messages
+// ─── Message handling ──────────────────────────────────────────────
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'GET_STATUS') {
-    // Check if sender's site is still enabled (global toggle + site toggle)
-    // If not, tell content script to remove overlay
     if (!settings.enabled || (sender.tab?.url && !urlMatchesEnabledSite(sender.tab.url))) {
       sendResponse({ active: true, disabled: true });
       return true;
     }
 
-    // Do a fresh check and respond
     checkStatus().then(() => {
       const response = lastStatus || { active: false, daemonOnline: false, timeout: settings.timeout };
       sendResponse(response);
     }).catch(() => {
       sendResponse({ active: false, daemonOnline: false, timeout: settings.timeout });
     });
-    return true; // Indicates async response
+    return true;
   }
 
   if (message.type === 'GET_SETTINGS') {
@@ -433,37 +463,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     settings = message.settings;
     if (DEBUG) console.log('[Claude Focus BG] Settings updated');
 
-    // Clear injected tabs tracking
-    injectedTabs.clear();
-
-    // Update all sites in one pass - prevents flicker by not doing remove-then-add
-    // Enabled sites get current status, disabled sites get removed
-    updateAllSites();
+    // Do NOT clear injectedTabs — that causes unnecessary re-injection thrash.
+    // The content script guards against double injection already.
+    // Use serialized update to prevent concurrent iterations.
+    serializedUpdateAllSites();
     return true;
   }
 
   return false;
 });
 
-// Listen for storage changes (e.g., from other extension pages or sync)
-// Note: When popup sends SETTINGS_CHANGED message, that handler takes care of everything.
-// This listener is mainly for changes from other sources (e.g., chrome sync from another device)
+// Listen for storage changes from other sources (e.g. sync from another device)
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'sync') {
-    // Just reload settings - don't broadcast here to avoid race with SETTINGS_CHANGED handler
-    // The periodic status check or next navigation will pick up the changes
     loadSettings();
   }
 });
 
-// Handle extension install/update
+// ─── Extension lifecycle ───────────────────────────────────────────
+
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === 'install') {
-    // Check if onboarding was already completed (e.g., reinstall)
     const { onboardingComplete } = await chrome.storage.local.get('onboardingComplete');
 
     if (!onboardingComplete) {
-      // Open onboarding page
       chrome.tabs.create({
         url: chrome.runtime.getURL('onboarding.html'),
       });
@@ -471,48 +494,37 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 });
 
-// Set up persistent alarm for reliable polling (survives service worker termination)
-async function setupAlarm() {
-  // Clear any existing alarm
-  await chrome.alarms.clear(ALARM_NAME);
+// ─── Alarm-based polling (survives service worker termination) ─────
 
-  // Create a repeating alarm
+async function setupAlarm() {
+  await chrome.alarms.clear(ALARM_NAME);
   await chrome.alarms.create(ALARM_NAME, {
     delayInMinutes: ALARM_PERIOD_MINUTES,
     periodInMinutes: ALARM_PERIOD_MINUTES,
   });
 }
 
-// Listen for alarm - this fires even if service worker was terminated
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) {
-    // Try to reconnect WebSocket if not connected
     if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
       connectWebSocket();
-      checkStatus(); // Only poll if WebSocket is down
+      checkStatus();
     }
   }
 });
 
-// Also listen for service worker startup to immediately check status
 self.addEventListener('activate', () => {
   checkStatus();
 });
 
-// Initialize
+// ─── Initialize ────────────────────────────────────────────────────
+
 loadSettings().then(async () => {
-  // Set up persistent alarm as fallback
   await setupAlarm();
-
-  // Connect to WebSocket for instant updates
   connectWebSocket();
-
-  // Immediate check on startup
   checkStatus();
 
-  // Also use setInterval as fallback while worker is active
   setInterval(() => {
-    // Only poll if WebSocket is not connected
     if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
       checkStatus();
     }

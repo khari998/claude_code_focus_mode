@@ -1,6 +1,10 @@
 /**
  * Claude Code Focus Mode - Media Controller
- * Handles pausing/resuming all media on the page
+ * Handles pausing/resuming all media on the page.
+ *
+ * Uses a MutationObserver to catch dynamically-added <video>/<audio> elements
+ * (YouTube, TikTok, Instagram lazy-load videos). A 1-second setInterval fallback
+ * catches anything the observer misses (e.g. elements injected via shadow DOM).
  */
 
 (function() {
@@ -10,7 +14,9 @@
 
   // Track media elements we've paused (so we only resume those)
   const pausedByUs = new WeakSet();
-  let mediaWatcherInterval = null;
+  let mediaWatcherActive = false;
+  let fallbackInterval = null;
+  let observer = null;
 
   /**
    * Get all media elements on the page
@@ -22,112 +28,151 @@
   }
 
   /**
-   * Get all currently playing media elements
-   */
-  function getPlayingMedia() {
-    return getAllMedia().filter(media => !media.paused);
-  }
-
-  /**
-   * Pause all playing media on the page
+   * Pause all currently playing media on the page.
+   * Can be called at any time — does not depend on overlay state.
+   * Returns the number of elements paused.
    */
   function pauseAllMedia() {
-    const playing = getPlayingMedia();
     let pausedCount = 0;
 
-    for (const media of playing) {
-      try {
-        media.pause();
-        pausedByUs.add(media);
-        pausedCount++;
-      } catch (e) {
-        console.warn('[Claude Focus] Failed to pause media:', e);
+    for (const el of getAllMedia()) {
+      if (!el.paused) {
+        try {
+          el.pause();
+          pausedByUs.add(el);
+          pausedCount++;
+        } catch (e) {
+          // cross-origin iframe media, etc.
+        }
       }
-    }
-
-    if (pausedCount > 0) {
-      console.log(`[Claude Focus] Paused ${pausedCount} media element(s)`);
     }
 
     return pausedCount;
   }
 
   /**
-   * Resume only the media we paused
+   * Resume only the media elements we paused.
    */
   function resumeOurPausedMedia() {
-    const allMedia = getAllMedia();
     let resumedCount = 0;
 
-    for (const media of allMedia) {
-      if (pausedByUs.has(media) && media.paused) {
+    for (const el of getAllMedia()) {
+      if (pausedByUs.has(el) && el.paused) {
         try {
-          media.play().catch(() => {
-            // Autoplay might be blocked, ignore
+          el.play().catch(() => {
+            // Autoplay policy may block — ignore
           });
           resumedCount++;
         } catch (e) {
-          console.warn('[Claude Focus] Failed to resume media:', e);
+          // Ignore
         }
-        pausedByUs.delete(media);
+        pausedByUs.delete(el);
       }
-    }
-
-    if (resumedCount > 0) {
-      console.log(`[Claude Focus] Resumed ${resumedCount} media element(s)`);
     }
 
     return resumedCount;
   }
 
   /**
-   * Clear tracking for all media (without resuming)
+   * Handle a newly-observed media element: pause it if the watcher is active.
    */
-  function clearPausedTracking() {
-    // WeakSet doesn't have a clear method, but elements will be
-    // garbage collected when removed from DOM
-  }
-
-  /**
-   * Start watching for new media to pause
-   * Needed because sites like TikTok/Instagram load videos dynamically
-   */
-  function startMediaWatcher() {
-    if (mediaWatcherInterval) return;
-
-    // Pause immediately
-    pauseAllMedia();
-
-    // Keep checking for new videos every 500ms
-    mediaWatcherInterval = setInterval(() => {
-      const playing = getPlayingMedia();
-      for (const media of playing) {
-        if (!pausedByUs.has(media)) {
-          pauseAllMedia();
-          break;
-        }
+  function onMediaElementFound(el) {
+    if (!mediaWatcherActive) return;
+    if (!el.paused) {
+      try {
+        el.pause();
+        pausedByUs.add(el);
+      } catch (e) {
+        // Ignore
       }
-    }, 500);
-
-    console.log('[Claude Focus] Media watcher started');
-  }
-
-  /**
-   * Stop watching for media
-   */
-  function stopMediaWatcher() {
-    if (mediaWatcherInterval) {
-      clearInterval(mediaWatcherInterval);
-      mediaWatcherInterval = null;
-      console.log('[Claude Focus] Media watcher stopped');
     }
   }
 
   /**
-   * Check if media watcher is active
+   * MutationObserver callback — scans added nodes for media elements.
    */
-  function isMediaWatcherActive() {
-    return mediaWatcherInterval !== null;
+  function onMutations(mutations) {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType !== Node.ELEMENT_NODE) continue;
+
+        // The added node itself could be a media element
+        if (node.tagName === 'VIDEO' || node.tagName === 'AUDIO') {
+          onMediaElementFound(node);
+        }
+
+        // Or it could contain media elements
+        if (node.querySelectorAll) {
+          const nested = node.querySelectorAll('video, audio');
+          for (const el of nested) {
+            onMediaElementFound(el);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Fallback interval — catches media that started playing outside of DOM
+   * mutation scope (e.g. autoplay attribute, JavaScript .play() calls on
+   * existing elements, or media inside shadow DOM).
+   */
+  function fallbackPause() {
+    if (!mediaWatcherActive) return;
+    for (const el of getAllMedia()) {
+      if (!el.paused && !pausedByUs.has(el)) {
+        try {
+          el.pause();
+          pausedByUs.add(el);
+        } catch (e) {
+          // Ignore
+        }
+      }
+    }
+  }
+
+  /**
+   * Start watching for media and pausing it.
+   * Idempotent — safe to call multiple times.
+   */
+  function startMediaWatcher() {
+    if (mediaWatcherActive) return;
+    mediaWatcherActive = true;
+
+    // Pause everything currently playing
+    pauseAllMedia();
+
+    // Start MutationObserver for new elements
+    if (!observer) {
+      observer = new MutationObserver(onMutations);
+    }
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+
+    // Fallback interval at 1s for autoplay/.play() calls
+    if (!fallbackInterval) {
+      fallbackInterval = setInterval(fallbackPause, 1000);
+    }
+  }
+
+  /**
+   * Stop watching for media. Does NOT resume media — call resumeOurPausedMedia() separately.
+   * Idempotent — safe to call multiple times.
+   */
+  function stopMediaWatcher() {
+    if (!mediaWatcherActive) return;
+    mediaWatcherActive = false;
+
+    if (observer) {
+      observer.disconnect();
+    }
+
+    if (fallbackInterval) {
+      clearInterval(fallbackInterval);
+      fallbackInterval = null;
+    }
   }
 
   // Expose API globally for content.js to use
@@ -136,9 +181,5 @@
     resumeOurPausedMedia,
     startMediaWatcher,
     stopMediaWatcher,
-    isMediaWatcherActive,
-    getPlayingMedia,
   };
-
-  console.log('[Claude Focus] Media controller loaded');
 })();
