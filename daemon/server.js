@@ -19,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+const DAEMON_VERSION = '1.6.1';
 const PORT = 31415;
 const ACTIVITY_FILE = path.join(__dirname, '..', 'activity.json');
 const ACTIVITY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
@@ -186,7 +187,7 @@ const server = http.createServer((req, res) => {
 
   if (url.pathname === '/health') {
     res.writeHead(200);
-    res.end(JSON.stringify({ ok: true, uptime: process.uptime(), wsClients: wsClients.size }));
+    res.end(JSON.stringify({ ok: true, version: DAEMON_VERSION, uptime: process.uptime(), wsClients: wsClients.size }));
     return;
   }
 

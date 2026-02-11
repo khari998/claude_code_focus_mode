@@ -70,6 +70,61 @@ body {
   font-weight: 400;
 }
 
+/* Update Banner */
+.update-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: rgba(202, 138, 4, 0.1);
+  border-bottom: 1px solid rgba(202, 138, 4, 0.2);
+}
+
+.update-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.update-banner-icon {
+  color: #ca8a04;
+  font-size: 14px;
+}
+
+.update-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.update-banner-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ca8a04;
+}
+
+.update-banner-versions {
+  font-size: 11px;
+  color: #87867f;
+}
+
+.update-btn {
+  padding: 4px 12px;
+  background: #ca8a04;
+  border: none;
+  border-radius: 4px;
+  color: #141413;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+
+.update-btn:hover {
+  opacity: 0.85;
+}
+
 /* Sections */
 .popup-section {
   padding: 16px 20px;

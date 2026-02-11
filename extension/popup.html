@@ -24,6 +24,18 @@
       </label>
     </header>
 
+    <!-- Update Banner (shown when daemon version mismatches extension) -->
+    <div id="update-banner" class="update-banner" style="display:none">
+      <div class="update-banner-content">
+        <i class="fa-solid fa-triangle-exclamation update-banner-icon"></i>
+        <div class="update-banner-text">
+          <span class="update-banner-title">Daemon update available</span>
+          <span class="update-banner-versions" id="update-versions"></span>
+        </div>
+      </div>
+      <button class="update-btn" id="update-btn">Update</button>
+    </div>
+
     <!-- Timeout Section -->
     <section class="popup-section">
       <div class="section-header">

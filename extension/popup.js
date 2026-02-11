@@ -44,6 +44,11 @@ const confirmAddSite = document.getElementById('confirm-add-site');
 const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const popupContainer = document.querySelector('.popup-container');
+const updateBanner = document.getElementById('update-banner');
+const updateVersions = document.getElementById('update-versions');
+const updateBtn = document.getElementById('update-btn');
+
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 
 // Load settings from storage
 async function loadSettings() {
@@ -178,9 +183,34 @@ async function checkStatus() {
       statusDot.className = 'status-dot inactive';
       statusText.textContent = elapsed ? `Inactive (${elapsed}s ago)` : 'Inactive';
     }
+
+    // Check daemon version
+    checkDaemonVersion();
   } catch (e) {
     statusDot.className = 'status-dot offline';
     statusText.textContent = 'Daemon offline';
+    updateBanner.style.display = 'none';
+  }
+}
+
+// Check if daemon version matches extension version
+async function checkDaemonVersion() {
+  try {
+    const response = await fetch(`${DAEMON_URL}/health`);
+    const health = await response.json();
+    const daemonVersion = health.version;
+
+    if (daemonVersion !== EXTENSION_VERSION) {
+      updateVersions.textContent = daemonVersion
+        ? `v${daemonVersion} → v${EXTENSION_VERSION}`
+        : `unknown → v${EXTENSION_VERSION}`;
+      updateBanner.style.display = 'flex';
+    } else {
+      updateBanner.style.display = 'none';
+    }
+  } catch (e) {
+    // Daemon offline — don't show version banner (offline status shown instead)
+    updateBanner.style.display = 'none';
   }
 }
 
@@ -288,6 +318,18 @@ customSiteInput.addEventListener('keypress', (e) => {
 
 customSiteInput.addEventListener('input', () => {
   clearInputError();
+});
+
+updateBtn.addEventListener('click', async () => {
+  const installCmd = 'curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus_mode/main/scripts/install.js | node';
+  try {
+    await navigator.clipboard.writeText(installCmd);
+    updateBtn.textContent = 'Copied!';
+    setTimeout(() => { updateBtn.textContent = 'Update'; }, 2000);
+  } catch (e) {
+    updateBtn.textContent = 'Failed';
+    setTimeout(() => { updateBtn.textContent = 'Update'; }, 2000);
+  }
 });
 
 // Initialize
