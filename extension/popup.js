@@ -284,14 +284,15 @@ globalToggle.addEventListener('change', () => {
 });
 
 timeoutInput.addEventListener('input', () => {
-  let value = parseInt(timeoutInput.value) || 1;
-  value = Math.max(1, Math.min(120, value));
-  settings.timeout = value;
+  const value = parseInt(timeoutInput.value);
+  if (!isNaN(value) && value >= 0) {
+    settings.timeout = value;
+  }
 });
 
 timeoutInput.addEventListener('change', () => {
-  let value = parseInt(timeoutInput.value) || 1;
-  value = Math.max(1, Math.min(120, value));
+  let value = parseInt(timeoutInput.value);
+  if (isNaN(value) || value < 0) value = 0;
   timeoutInput.value = value;
   settings.timeout = value;
   saveSettings();
