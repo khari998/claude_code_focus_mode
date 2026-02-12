@@ -9,7 +9,7 @@ Pause distracting sites unless Claude Code is actively working. Configure which 
 ## Features
 
 - **Configurable Sites**: Pause YouTube, Twitter, Reddit, Facebook, Instagram, TikTok, Twitch, Netflix, or add custom domains
-- **Adjustable Timeout**: Set how long before sites get paused (1-10 minutes)
+- **Adjustable Timeout**: Set how long before sites get paused  
 - **Media Pause/Resume**: Automatically pauses video/audio when paused, resumes when unpaused
 - **Global Toggle**: Quickly enable/disable pausing without changing site settings
 - **Status Indicator**: See Claude activity status in the extension popup
