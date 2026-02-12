@@ -11,11 +11,11 @@
   <div class="container">
     <header>
       <img src="icon.svg" alt="Claude Code Focus Mode" class="logo">
-      <h1>Claude Code Focus Mode</h1>
-      <p class="subtitle">Pause distracting sites while Claude Code is inactive</p>
+      <h1 id="page-title">Claude Code Focus Mode</h1>
+      <p class="subtitle" id="page-subtitle">Pause distracting sites while Claude Code is inactive</p>
     </header>
 
-    <div class="prerequisite">
+    <div class="prerequisite" id="prerequisite">
       <i class="fa-solid fa-circle-info"></i>
       <span><strong>Prerequisite:</strong> <a href="https://claude.ai/code" target="_blank">Claude Code</a> must be installed before running setup.</span>
     </div>
@@ -29,8 +29,8 @@
       </section>
 
       <section class="setup-section" id="setup-section">
-        <h2>Complete Setup</h2>
-        <p>Run this command in your terminal to install the extension in Claude Code:</p>
+        <h2 id="setup-title">Complete Setup</h2>
+        <p id="setup-description">Run this command in your terminal to install the extension in Claude Code:</p>
 
         <div class="command-box">
           <code id="command">curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus_mode/main/scripts/install.js | node</code>
@@ -61,8 +61,8 @@
 
       <section class="success-section" id="success-section" style="display: none;">
         <div class="success-icon"><i class="fa-solid fa-check"></i></div>
-        <h2>You're all set!</h2>
-        <p class="reminder">Don't forget to <strong>restart any active Claude Code instances</strong> to activate the extension.</p>
+        <h2 id="success-title">You're all set!</h2>
+        <p class="reminder" id="success-reminder">Don't forget to <strong>restart any active Claude Code instances</strong> to activate the extension.</p>
         <button id="open-settings-btn" class="primary-btn">Open Extension Settings</button>
       </section>
     </main>

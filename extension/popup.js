@@ -217,7 +217,7 @@ async function checkDaemonVersion() {
     if (!daemonVersion || versionLessThan(daemonVersion, EXTENSION_VERSION)) {
       updateVersions.textContent = daemonVersion
         ? `v${daemonVersion} → v${EXTENSION_VERSION}`
-        : `unknown → v${EXTENSION_VERSION}`;
+        : `pre-1.6 → v${EXTENSION_VERSION}`;
       updateBanner.style.display = 'flex';
     } else {
       updateBanner.style.display = 'none';
@@ -335,16 +335,8 @@ customSiteInput.addEventListener('input', () => {
   clearInputError();
 });
 
-updateBtn.addEventListener('click', async () => {
-  const installCmd = 'curl -fsSL https://raw.githubusercontent.com/khari998/claude_code_focus_mode/main/scripts/install.js | node';
-  try {
-    await navigator.clipboard.writeText(installCmd);
-    updateBtn.textContent = 'Copied!';
-    setTimeout(() => { updateBtn.textContent = 'Update'; }, 2000);
-  } catch (e) {
-    updateBtn.textContent = 'Failed';
-    setTimeout(() => { updateBtn.textContent = 'Update'; }, 2000);
-  }
+updateBtn.addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('onboarding.html?update=true') });
 });
 
 // Initialize

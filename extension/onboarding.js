@@ -1,10 +1,14 @@
 /**
- * Claude Code Focus Mode - Onboarding Page
- * Guides users through setup and detects when daemon is running
+ * Claude Code Focus Mode - Onboarding / Update Page
+ * Guides users through setup and detects when daemon is running.
+ * When opened with ?update=true, handles daemon update flow instead.
  */
 
 const DAEMON_URL = 'http://127.0.0.1:31415';
 const POLL_INTERVAL = 2000;
+
+const IS_UPDATE = new URLSearchParams(window.location.search).get('update') === 'true';
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 
 let pollInterval = null;
 let isConnected = false;
@@ -22,7 +26,32 @@ const command = document.getElementById('command');
 const openSettingsBtn = document.getElementById('open-settings-btn');
 
 /**
- * Check if daemon is running
+ * Adapt page content for update flow
+ */
+function setupUpdateMode() {
+  document.title = 'Claude Code Focus Mode - Update';
+  document.getElementById('page-title').textContent = 'Update Daemon';
+  document.getElementById('page-subtitle').textContent = 'A new version of the daemon is available';
+  document.getElementById('prerequisite').style.display = 'none';
+  document.getElementById('setup-title').textContent = 'Update Daemon';
+  document.getElementById('setup-description').textContent = 'Run this command in your terminal to update the daemon:';
+  document.getElementById('success-title').textContent = 'Daemon updated!';
+  document.getElementById('success-reminder').innerHTML = 'The daemon is now running <strong>v' + EXTENSION_VERSION + '</strong>. You can close this tab.';
+
+  // Update steps for the update flow
+  const steps = document.querySelectorAll('.step-text');
+  if (steps.length >= 3) {
+    steps[0].textContent = 'Copy and run the command above';
+    steps[1].textContent = 'Wait for the daemon to restart automatically';
+    steps[2].textContent = 'This page will detect the update when it\'s ready';
+  }
+
+  // Update status text
+  statusText.textContent = 'Waiting for daemon update...';
+}
+
+/**
+ * Check if daemon is running (and on the correct version for updates)
  */
 async function checkDaemon() {
   try {
@@ -32,6 +61,16 @@ async function checkDaemon() {
     });
 
     if (response.ok) {
+      if (IS_UPDATE) {
+        const health = await response.json();
+        // For updates, only succeed when daemon reports the current extension version
+        if (health.version && !versionLessThan(health.version, EXTENSION_VERSION)) {
+          onConnected();
+          return true;
+        }
+        // Daemon is running but still on old version — keep polling
+        return false;
+      }
       onConnected();
       return true;
     }
@@ -43,7 +82,23 @@ async function checkDaemon() {
 }
 
 /**
- * Called when daemon connection is established
+ * Compare semver strings: returns true if a < b
+ */
+function versionLessThan(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na < nb) return true;
+    if (na > nb) return false;
+  }
+  return false;
+}
+
+/**
+ * Called when daemon connection is established (and version is current for updates)
  */
 function onConnected() {
   if (isConnected) return;
@@ -52,7 +107,7 @@ function onConnected() {
   // Update status indicator
   statusIndicator.classList.add('connected');
   statusIcon.remove();
-  statusText.textContent = 'Extension connected!';
+  statusText.textContent = IS_UPDATE ? 'Daemon updated!' : 'Extension connected!';
 
   // Hide setup, show success
   setupSection.style.display = 'none';
@@ -128,6 +183,11 @@ function openSettings() {
 // Event listeners
 copyBtn.addEventListener('click', copyCommand);
 openSettingsBtn.addEventListener('click', openSettings);
+
+// Configure page for update mode if needed
+if (IS_UPDATE) {
+  setupUpdateMode();
+}
 
 // Start polling for daemon
 checkDaemon().then(connected => {
