@@ -19,7 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-const DAEMON_VERSION = '1.6.1';
+const DAEMON_VERSION = '1.6.2';
 const PORT = 31415;
 const ACTIVITY_FILE = path.join(__dirname, '..', 'activity.json');
 const ACTIVITY_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
