@@ -193,14 +193,28 @@ async function checkStatus() {
   }
 }
 
-// Check if daemon version matches extension version
+// Compare two version strings, returns true if a < b
+function versionLessThan(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na < nb) return true;
+    if (na > nb) return false;
+  }
+  return false;
+}
+
+// Check if daemon version is older than extension version
 async function checkDaemonVersion() {
   try {
     const response = await fetch(`${DAEMON_URL}/health`);
     const health = await response.json();
     const daemonVersion = health.version;
 
-    if (daemonVersion !== EXTENSION_VERSION) {
+    if (!daemonVersion || versionLessThan(daemonVersion, EXTENSION_VERSION)) {
       updateVersions.textContent = daemonVersion
         ? `v${daemonVersion} → v${EXTENSION_VERSION}`
         : `unknown → v${EXTENSION_VERSION}`;
